@@ -1,0 +1,2 @@
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts
+@zetachain/protocol-contracts/contracts=lib/protocol-contracts/contracts
