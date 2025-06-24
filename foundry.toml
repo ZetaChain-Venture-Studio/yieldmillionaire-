@@ -2,6 +2,13 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+evm_version = "paris"
+
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts",
+    "@zetachain/contracts=lib/protocol-contracts/contracts",
+    "@aave/contracts=lib/aave-v3-origin/src/contracts"
+]
 
 [fmt]
 sort_imports = true

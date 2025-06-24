@@ -10,6 +10,3 @@
 [submodule "lib/aave-v3-origin"]
 	path = lib/aave-v3-origin
 	url = https://github.com/aave-dao/aave-v3-origin
-[submodule "lib/Aave-Vault"]
-	path = lib/Aave-Vault
-	url = https://github.com/aave/Aave-Vault
