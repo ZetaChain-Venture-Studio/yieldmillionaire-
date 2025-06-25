@@ -24,9 +24,9 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
     /// @inheritdoc IAaveVault
     IPool public immutable POOL;
     /// @inheritdoc IAaveVault
-    IERC20 public immutable ASSET;
+    IERC20 public immutable TOKEN;
     /// @inheritdoc IAaveVault
-    IERC20 public immutable ATOKEN;
+    IERC20 public immutable ASSET;
     /// @inheritdoc IAaveVault
     IGatewayEVM public immutable GATEWAY;
     /// @inheritdoc IAaveVault
@@ -42,11 +42,11 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
         _;
     }
 
-    constructor(IPool _pool, IERC20 _asset, IERC20 _atoken, IGatewayEVM _gateway, address _yieldMil) payable {
+    constructor(IPool _pool, IERC20 _token, IERC20 _asset, IGatewayEVM _gateway, address _yieldMil) payable {
         _disableInitializers();
         POOL = _pool;
+        TOKEN = _token;
         ASSET = _asset;
-        ATOKEN = _atoken;
         GATEWAY = _gateway;
         YIELDMIL = _yieldMil;
     }
@@ -79,7 +79,7 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
         if (owner == address(0)) revert ZeroAddress();
         // cannot be more than 50%
         if (fee > SCALE / 2) revert InvalidFee();
-        if (amount == 0) revert ZeroAssets();
+        if (amount == 0) revert ZeroTokens();
 
         Storage storage s = _getStorage();
         s.owner = owner;
@@ -91,12 +91,13 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
         if (shares == 0) revert ZeroShares();
 
         // Approve the pool and gateway
-        IERC20(ASSET).approve(address(POOL), type(uint256).max);
-        IERC20(ASSET).approve(address(GATEWAY), type(uint256).max);
+        IERC20(TOKEN).approve(address(POOL), type(uint256).max);
+        IERC20(TOKEN).approve(address(GATEWAY), type(uint256).max);
 
-        ASSET.safeTransferFrom(msg.sender, address(this), amount);
-        POOL.supply(address(ASSET), amount, address(this), 0);
-        _getStorage().lastVaultBalance = ATOKEN.balanceOf(address(this));
+        // initial deposit
+        TOKEN.safeTransferFrom(msg.sender, address(this), amount);
+        POOL.supply(address(TOKEN), amount, address(this), 0);
+        _getStorage().lastVaultBalance = ASSET.balanceOf(address(this));
         _mint(owner, shares);
 
         emit Deposit(owner, amount, shares);
@@ -118,8 +119,8 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
         Storage storage s = _getStorage();
         uint256 amount = s.accumulatedFees;
         delete s.accumulatedFees;
-        ATOKEN.safeTransfer(to, amount);
-        s.lastVaultBalance = ATOKEN.balanceOf(address(this));
+        ASSET.safeTransfer(to, amount);
+        s.lastVaultBalance = ASSET.balanceOf(address(this));
 
         emit FeesWithdrawn(to, amount);
     }
@@ -171,13 +172,13 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
 
     /// @inheritdoc IAaveVault
     function totalAssets() public view returns (uint256) {
-        return ATOKEN.balanceOf(address(this)) - getAccumulatedFees();
+        return ASSET.balanceOf(address(this)) - getAccumulatedFees();
     }
 
     /// @inheritdoc IAaveVault
     function getAccumulatedFees() public view returns (uint256) {
         Storage storage s = _getStorage();
-        uint256 newVaultBalance = ATOKEN.balanceOf(address(this));
+        uint256 newVaultBalance = ASSET.balanceOf(address(this));
         uint256 lastVaultBalance = s.lastVaultBalance;
         uint256 fee = s.fee;
         if (newVaultBalance <= lastVaultBalance || fee == 0) {
@@ -195,7 +196,7 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
      */
     function _accrueYield() internal {
         Storage storage s = _getStorage();
-        uint256 newVaultBalance = ATOKEN.balanceOf(address(this));
+        uint256 newVaultBalance = ASSET.balanceOf(address(this));
         uint256 lastVaultBalance = s.lastVaultBalance;
 
         if (newVaultBalance <= lastVaultBalance) {
@@ -222,9 +223,9 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
         uint256 shares = _convertToShares(amount);
         if (shares == 0) revert ZeroShares();
 
-        ASSET.safeTransferFrom(address(GATEWAY), address(this), amount);
-        POOL.supply(address(ASSET), amount, address(this), 0);
-        _getStorage().lastVaultBalance = ATOKEN.balanceOf(address(this));
+        TOKEN.safeTransferFrom(address(GATEWAY), address(this), amount);
+        POOL.supply(address(TOKEN), amount, address(this), 0);
+        _getStorage().lastVaultBalance = ASSET.balanceOf(address(this));
         _mint(sender, shares);
 
         emit Deposit(sender, amount, shares);
@@ -242,8 +243,8 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
         if (amount == 0) revert ZeroAssets();
 
         _burn(sender, shares);
-        amount = POOL.withdraw(address(ASSET), amount, address(this));
-        _getStorage().lastVaultBalance = ATOKEN.balanceOf(address(this));
+        amount = POOL.withdraw(address(TOKEN), amount, address(this));
+        _getStorage().lastVaultBalance = ASSET.balanceOf(address(this));
         _sendToZetachain(sender, amount);
 
         emit Withdraw(sender, amount, shares);
@@ -294,6 +295,6 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
             revertMessage: abi.encode(receiver),
             onRevertGasLimit: 0
         });
-        GATEWAY.deposit(receiver, amount, address(ASSET), revertOptions);
+        GATEWAY.deposit(receiver, amount, address(TOKEN), revertOptions);
     }
 }

@@ -58,6 +58,7 @@ interface IAaveVault {
     error ZeroAddress();
     error ZeroAssets();
     error ZeroShares();
+    error ZeroTokens();
 
     /**
      * Returns the current version of the contract.
@@ -68,13 +69,13 @@ interface IAaveVault {
      */
     function POOL() external view returns (IPool);
     /**
-     * Returns the ASSET contract address.
+     * Returns the TOKEN contract address.
+     */
+    function TOKEN() external view returns (IERC20);
+    /**
+     * Returns the ASSET (AToken) contract address.
      */
     function ASSET() external view returns (IERC20);
-    /**
-     * Returns the ATOKEN contract address.
-     */
-    function ATOKEN() external view returns (IERC20);
     /**
      * Returns the GATEWAY contract address.
      */
