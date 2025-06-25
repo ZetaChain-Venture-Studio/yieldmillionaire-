@@ -7,7 +7,11 @@ import {IYieldMil} from "../src/interfaces/IYieldMil.sol";
 import {Script, console} from "forge-std/Script.sol";
 
 contract DeployYieldMilScript is Script {
-    address constant admin = 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827;
+    address constant admin = 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
+    address constant implTestnet = 0x23C2BEea3B04cA176D5bebc093F3adac912ABd6d;
+    address constant implMainnet = 0x708D46908973dd696B2e182deDc5E8F80B42BF26;
+    address constant proxyTestnet = 0x3a1E99a396607B822a68B194eE856d05fc38d848;
+    address constant proxyMainnet = 0xE65eEe518A897618cBEe25898f80200E7988c81e;
 
     struct YieldMilConstructorArgs {
         IGatewayZEVM gateway;
@@ -37,7 +41,7 @@ contract DeployYieldMilScript is Script {
     });
 
     // deploy yieldMil implementation
-    /* function run() public {
+    function run() public {
         vm.startBroadcast();
         YieldMilConstructorArgs memory args;
         if (block.chainid == 7000) {
@@ -49,41 +53,56 @@ contract DeployYieldMilScript is Script {
         }
         new YieldMil(args.gateway, args.systemContract, args.usdcBase, args.ethBase, args.usdcPolygon, args.polPolygon);
         vm.stopBroadcast();
-    } */
+    }
 
     // deploy proxy without initializing
     /* function run() public {
         vm.startBroadcast();
-        address yieldMil = 0xeebC3D7bf1e4b57a08135E9C4E2fE6834e9c1dD0;
-        new ProxyBase(yieldMil, admin, "");
+        new ProxyBase(_getImpl(), admin, "");
         vm.stopBroadcast();
     } */
 
     // initialize
     /* function run() public {
         vm.startBroadcast();
-        address yieldMil = 0xeebC3D7bf1e4b57a08135E9C4E2fE6834e9c1dD0;
-        ProxyBase proxy = ProxyBase(payable(0x76768c94b898CC09e163BDB58B8742162F9FdF6a));
-        (IYieldMil.Chain[] memory chains, IYieldMil.Protocol[] memory protocols, address[] memory tokens, address[] memory vaults) = _getInitContext();
-        IYieldMil.InitContext memory initContext = IYieldMil.InitContext({
-            owner: admin,
-            chains: chains,
-            protocols: protocols,
-            tokens: tokens,
-            vaults: vaults
-        });
+        (
+            IYieldMil.Chain[] memory chains,
+            IYieldMil.Protocol[] memory protocols,
+            address[] memory tokens,
+            address[] memory vaults
+        ) = _getInitContext();
+        IYieldMil.InitContext memory initContext =
+            IYieldMil.InitContext({owner: admin, chains: chains, protocols: protocols, tokens: tokens, vaults: vaults});
         bytes memory data = abi.encodeCall(YieldMil.initialize, initContext);
-        proxy.changeImplementation(yieldMil, data);
+        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), data);
         vm.stopBroadcast();
     } */
 
     // change implementation
-    function run() public {
+    /* function run() public {
         vm.startBroadcast();
-        address yieldMil = 0xeebC3D7bf1e4b57a08135E9C4E2fE6834e9c1dD0;
-        ProxyBase proxy = ProxyBase(payable(0x76768c94b898CC09e163BDB58B8742162F9FdF6a));
-        proxy.changeImplementation(yieldMil, "");
+        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
         vm.stopBroadcast();
+    } */
+
+    function _getImpl() internal view returns (address) {
+        if (block.chainid == 7000) {
+            return implMainnet;
+        } else if (block.chainid == 7001) {
+            return implTestnet;
+        } else {
+            revert("Unsupported network");
+        }
+    }
+
+    function _getProxy() internal view returns (address) {
+        if (block.chainid == 7000) {
+            return proxyMainnet;
+        } else if (block.chainid == 7001) {
+            return proxyTestnet;
+        } else {
+            revert("Unsupported network");
+        }
     }
 
     function _getInitContext()
@@ -104,11 +123,11 @@ contract DeployYieldMilScript is Script {
             protocols[0] = IYieldMil.Protocol.Aave;
             protocols[1] = IYieldMil.Protocol.Aave;
             tokens = new address[](2);
-            tokens[0] = testnetArgs.usdcBase;
-            tokens[1] = testnetArgs.usdcPolygon;
-            vaults = new address[](1);
-            vaults[0] = 0x4fDf139518f0a6DaA2073934DcC67c49fA50aA55;
-            vaults[1] = 0x4fDf139518f0a6DaA2073934DcC67c49fA50aA55;
+            tokens[0] = mainnetArgs.usdcBase;
+            tokens[1] = mainnetArgs.usdcPolygon;
+            vaults = new address[](2);
+            vaults[0] = 0xD4F3Ba2Fe4183c32A498Ad1ecF9Fc55308FcC029;
+            vaults[1] = 0x1c60d7075b19C8107dEe803272c9d085A0eDf775;
         } else if (block.chainid == 7001) {
             chains = new IYieldMil.Chain[](1);
             chains[0] = IYieldMil.Chain.Base;
@@ -117,7 +136,7 @@ contract DeployYieldMilScript is Script {
             tokens = new address[](1);
             tokens[0] = testnetArgs.usdcBase;
             vaults = new address[](1);
-            vaults[0] = 0x4fDf139518f0a6DaA2073934DcC67c49fA50aA55;
+            vaults[0] = 0x2DEEdcE96f1B40301B7CA1F8877286f73dE87CF3;
         } else {
             revert("Unsupported network");
         }
