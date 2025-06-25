@@ -26,6 +26,7 @@ interface IYieldMil {
      * A struct to store the context of a cross-chain call.
      * @param targetChain - The target chain to which the call is made.
      * @param protocol - The protocol to which the call is made.
+     * @param to - The address on behalf of which the deposit is made on an EVM or to which to receive the withdrawal.
      * @param token - The token to transfer.
      * @param amount - The amount to transfer.
      * @param gasLimit - The gas limit for the call.
@@ -33,6 +34,7 @@ interface IYieldMil {
     struct CallContext {
         Chain targetChain;
         Protocol protocol;
+        address to;
         address token;
         uint256 amount;
         uint256 gasLimit;
@@ -59,10 +61,18 @@ interface IYieldMil {
      * @param depositor - The address of the depositor.
      * @param chain - The chain to which the deposit is made.
      * @param protocol - The protocol to which the deposit is made.
+     * @param onBehalfOf - The address on behalf of which the deposit is made.
      * @param token - The token to deposit.
      * @param amount - The amount of the token to deposit.
      */
-    event Deposit(address indexed depositor, Chain chain, Protocol protocol, address token, uint256 amount);
+    event Deposit(
+        address indexed depositor,
+        Chain chain,
+        Protocol protocol,
+        address indexed onBehalfOf,
+        address token,
+        uint256 amount
+    );
     /**
      * Emitted when a deposit is aborted.
      * @param abortContext - The abort context.
@@ -105,10 +115,13 @@ interface IYieldMil {
      * @param sender - The address of the sender.
      * @param chain - The chain from which the withdrawal is made.
      * @param protocol - The protocol from which the withdrawal is made.
+     * @param to - The address to which the withdrawal is sent.
      * @param token - The token to withdraw.
      * @param amount - The amount of **shares** to withdraw.
      */
-    event Withdraw(address indexed sender, Chain chain, Protocol protocol, address token, uint256 amount);
+    event Withdraw(
+        address indexed sender, Chain chain, Protocol protocol, address indexed to, address token, uint256 amount
+    );
     /**
      * Emitted when a withdrawal is aborted.
      * @param abortContext - The abort context.
@@ -173,6 +186,7 @@ interface IYieldMil {
      * Deposits tokens into the contract.
      * @notice The token to deposit must be approved.
      * @notice The gas on an EVM chain is paid from the token amount.
+     * @notice The tokens are taken from the caller, but deposit is made for context.to.
      * @dev Reverts if the vault does not exist.
      * @param context - The deposit call context.
      */
@@ -181,6 +195,7 @@ interface IYieldMil {
      * Withdraws tokens from the contract on an EVM.
      * @notice The gas on an EVM chain is paid from Zeta sent with the call.
      * @notice The amount in context is the amount of **shares** to withdraw.
+     * @notice The tokens are sent to context.to on Zetachain.
      * @dev Does not revert on Zetachain, only on an EVM.
      * @param context - The withdrawal call context.
      */

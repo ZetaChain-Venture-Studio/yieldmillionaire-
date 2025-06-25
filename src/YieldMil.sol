@@ -82,7 +82,7 @@ contract YieldMil is YieldMilStorage, Abortable, Revertable, Initializable {
         (address gasZRC20, uint256 gasFee) = IZRC20(context.token).withdrawGasFeeWithGasLimit(context.gasLimit);
         amount -= SYSTEM_CONTRACT.swapTokensForExactTokens(context.token, amount, gasZRC20, gasFee);
 
-        bytes memory message = bytes.concat(hex"01", abi.encode(msg.sender, amount));
+        bytes memory message = bytes.concat(hex"01", abi.encode(msg.sender, context.to, amount));
         CallOptions memory callOptions = CallOptions({gasLimit: context.gasLimit, isArbitraryCall: false});
         RevertOptions memory revertOptions = RevertOptions({
             revertAddress: address(this),
@@ -96,7 +96,7 @@ contract YieldMil is YieldMilStorage, Abortable, Revertable, Initializable {
             bytes.concat(bytes20(vault)), amount, context.token, message, callOptions, revertOptions
         );
 
-        emit Deposit(msg.sender, context.targetChain, context.protocol, context.token, amount);
+        emit Deposit(msg.sender, context.targetChain, context.protocol, context.to, context.token, amount);
     }
 
     /// @inheritdoc IYieldMil
@@ -114,7 +114,7 @@ contract YieldMil is YieldMilStorage, Abortable, Revertable, Initializable {
         (, uint256 gasFee) = IZRC20(gasZRC20).withdrawGasFeeWithGasLimit(context.gasLimit);
         amount -= SYSTEM_CONTRACT.swapTokensForExactTokens(address(WZETA), amount, gasZRC20, gasFee);
 
-        bytes memory message = bytes.concat(hex"02", abi.encode(msg.sender, context.amount));
+        bytes memory message = bytes.concat(hex"02", abi.encode(msg.sender, context.to, context.amount));
         CallOptions memory callOptions = CallOptions({gasLimit: context.gasLimit, isArbitraryCall: false});
         RevertOptions memory revertOptions = RevertOptions({
             revertAddress: address(this),
@@ -126,7 +126,7 @@ contract YieldMil is YieldMilStorage, Abortable, Revertable, Initializable {
 
         GATEWAY.call(bytes.concat(bytes20(vault)), gasZRC20, message, callOptions, revertOptions);
 
-        emit Withdraw(msg.sender, context.targetChain, context.protocol, context.token, context.amount);
+        emit Withdraw(msg.sender, context.targetChain, context.protocol, context.to, context.token, context.amount);
 
         // Return excess funds
         if (amount != 0) {
@@ -140,8 +140,10 @@ contract YieldMil is YieldMilStorage, Abortable, Revertable, Initializable {
     function onRevert(RevertContext calldata revertContext) external onlyGateway {
         if (revertContext.sender != address(this)) revert InvalidRevert();
         if (revertContext.revertMessage[0] == hex"01") {
-            (address sender,) =
-                abi.decode(revertContext.revertMessage[1:revertContext.revertMessage.length], (address, uint256));
+            (address sender,,) = abi.decode(
+                revertContext.revertMessage[1:revertContext.revertMessage.length], (address, address, uint256)
+            );
+            // return tokens to the original sender
             IERC20(revertContext.asset).safeTransfer(sender, revertContext.amount);
             emit DepositReverted(revertContext);
         } else if (revertContext.revertMessage[0] == hex"02") {
@@ -156,8 +158,10 @@ contract YieldMil is YieldMilStorage, Abortable, Revertable, Initializable {
         if (abortContext.outgoing) {
             if (address(bytes20(abortContext.sender)) != address(this)) revert InvalidAbort();
             if (abortContext.revertMessage[0] == hex"01") {
-                (address sender,) =
-                    abi.decode(abortContext.revertMessage[1:abortContext.revertMessage.length], (address, uint256));
+                (address sender,,) = abi.decode(
+                    abortContext.revertMessage[1:abortContext.revertMessage.length], (address, address, uint256)
+                );
+                // return tokens to the original sender
                 IERC20(abortContext.asset).safeTransfer(sender, abortContext.amount);
                 emit DepositAborted(abortContext);
             } else if (abortContext.revertMessage[0] == hex"02") {
