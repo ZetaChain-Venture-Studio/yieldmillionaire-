@@ -14,10 +14,11 @@ interface IAaveVault {
     /**
      * Emitted when a deposit is made.
      * @param depositor - The address of the depositor.
+     * @param onBehalfOf - The address on behalf of which the deposit is made.
      * @param assets - The amount of assets deposited.
      * @param shares - The amount of shares minted.
      */
-    event Deposit(address indexed depositor, uint256 assets, uint256 shares);
+    event Deposit(address indexed depositor, address indexed onBehalfOf, uint256 assets, uint256 shares);
     /**
      * Emitted when the fee is updated.
      * @param newFee - The new fee.
@@ -43,11 +44,12 @@ interface IAaveVault {
     event OwnerUpdated(address indexed newOwner);
     /**
      * Emitted when tokens are withdrawn.
+     * @param sender - The address of the sender.
      * @param receiver - The address to withdraw to on ZetaChain.
      * @param assets - The amount of assets withdrawn.
      * @param shares - The amount of shares withdrawn.
      */
-    event Withdraw(address indexed receiver, uint256 assets, uint256 shares);
+    event Withdraw(address indexed sender, address indexed receiver, uint256 assets, uint256 shares);
 
     error InvalidFee();
     error InvalidMessage(bytes);

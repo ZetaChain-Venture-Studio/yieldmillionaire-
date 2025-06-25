@@ -100,7 +100,7 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
         _getStorage().lastVaultBalance = ASSET.balanceOf(address(this));
         _mint(owner, shares);
 
-        emit Deposit(owner, amount, shares);
+        emit Deposit(owner, owner, amount, shares);
     }
 
     /// @inheritdoc IAaveVault
@@ -215,10 +215,10 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
 
     /**
      * Deposits assets and mints shares.
-     * @param message - Message containing sender and amount.
+     * @param message - Message containing sender, onBehalfOf and amount.
      */
     function _deposit(bytes calldata message) internal {
-        (address sender, uint256 amount) = abi.decode(message, (address, uint256));
+        (address sender, address onBehalfOf, uint256 amount) = abi.decode(message, (address, address, uint256));
         _accrueYield();
         uint256 shares = _convertToShares(amount);
         if (shares == 0) revert ZeroShares();
@@ -226,9 +226,9 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
         TOKEN.safeTransferFrom(address(GATEWAY), address(this), amount);
         POOL.supply(address(TOKEN), amount, address(this), 0);
         _getStorage().lastVaultBalance = ASSET.balanceOf(address(this));
-        _mint(sender, shares);
+        _mint(onBehalfOf, shares);
 
-        emit Deposit(sender, amount, shares);
+        emit Deposit(sender, onBehalfOf, amount, shares);
     }
 
     /**
@@ -237,7 +237,7 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
      * @param message - Message containing sender and shares.
      */
     function _withdraw(bytes calldata message) internal {
-        (address sender, uint256 shares) = abi.decode(message, (address, uint256));
+        (address sender, address receiver, uint256 shares) = abi.decode(message, (address, address, uint256));
         _accrueYield();
         uint256 amount = _convertToAssets(shares);
         if (amount == 0) revert ZeroAssets();
@@ -245,9 +245,9 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
         _burn(sender, shares);
         amount = POOL.withdraw(address(TOKEN), amount, address(this));
         _getStorage().lastVaultBalance = ASSET.balanceOf(address(this));
-        _sendToZetachain(sender, amount);
+        _sendToZetachain(receiver, amount);
 
-        emit Withdraw(sender, amount, shares);
+        emit Withdraw(sender, receiver, amount, shares);
     }
 
     /**
