@@ -281,7 +281,7 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
      */
     function _convertToAssets(uint256 shares) internal view returns (uint256) {
         uint256 supply = totalSupply();
-        return (supply == 0) ? shares : shares.mulDiv(totalAssets(), supply, Math.Rounding.Ceil);
+        return (supply == 0) ? shares : shares.mulDiv(totalAssets(), supply, Math.Rounding.Floor);
     }
 
     /**
