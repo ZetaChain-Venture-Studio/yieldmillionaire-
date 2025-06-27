@@ -3,7 +3,7 @@ pragma solidity ^0.8.26;
 
 import {IPool} from "@aave/contracts/interfaces/IPool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IGatewayEVM, RevertContext} from "@zetachain/contracts/evm/interfaces/IGatewayEVM.sol";
+import {IGatewayEVM} from "@zetachain/contracts/evm/interfaces/IGatewayEVM.sol";
 
 /**
  * @title IAaveVault

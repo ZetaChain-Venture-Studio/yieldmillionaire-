@@ -27,21 +27,21 @@ contract ProxyBase is ERC1967Proxy {
      * Change the proxy admin
      * @dev Only callable by the proxy admin
      * @dev Selector - 0x9f712f2f
-     * @param _newAdmin - The new proxy admin.
+     * @param newAdmin - The new proxy admin.
      */
-    function changeProxyAdmin(address _newAdmin) external onlyProxyAdmin {
-        ERC1967Utils.changeAdmin(_newAdmin);
+    function changeProxyAdmin(address newAdmin) external onlyProxyAdmin {
+        ERC1967Utils.changeAdmin(newAdmin);
     }
 
     /**
      * Change the proxy implementation
      * @dev Only callable by the proxy admin
      * @dev Selector - 0x31124171
-     * @param _newImpl - The new implementation.
-     * @param _data - The initialization data.
+     * @param newImpl - The new implementation.
+     * @param data - The initialization data.
      */
-    function changeImplementation(address _newImpl, bytes calldata _data) external onlyProxyAdmin {
-        ERC1967Utils.upgradeToAndCall(_newImpl, _data);
+    function changeImplementation(address newImpl, bytes calldata data) external onlyProxyAdmin {
+        ERC1967Utils.upgradeToAndCall(newImpl, data);
     }
 
     /**

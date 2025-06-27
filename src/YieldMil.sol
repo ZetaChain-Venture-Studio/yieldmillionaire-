@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import "./YieldMilStorage.sol";
+import "./interfaces/IYieldMil.sol";
 import {SwapHelperLib} from "./utils/SwapHelperLib.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -15,12 +16,12 @@ import "@zetachain/contracts/zevm/interfaces/IZRC20.sol";
  * @author https://github.com/nzmpi
  * @notice An entry point for the YieldMil to deposit and withdraw tokens on supported chains
  */
-contract YieldMil is YieldMilStorage, Abortable, Revertable, Initializable {
+contract YieldMil is IYieldMil, YieldMilStorage, Abortable, Revertable, Initializable {
     using SafeERC20 for IERC20;
     using SwapHelperLib for ISystemContract;
 
     /// @inheritdoc IYieldMil
-    string public constant VERSION = "1.0.0";
+    string public constant VERSION = "1.0.1";
     /// @inheritdoc IYieldMil
     IWETH9 public constant WZETA = IWETH9(0x5F0b1a82749cb4E2278EC87F8BF6B618dC71a8bf);
     /// @inheritdoc IYieldMil
@@ -60,6 +61,10 @@ contract YieldMil is YieldMilStorage, Abortable, Revertable, Initializable {
         address _polPolygon
     ) payable {
         _disableInitializers();
+        if (
+            address(_gateway) == address(0) || address(_systemContract) == address(0) || _usdcBase == address(0)
+                || _ethBase == address(0) || _usdcPolygon == address(0) || _polPolygon == address(0)
+        ) revert ZeroAddress();
         GATEWAY = _gateway;
         SYSTEM_CONTRACT = _systemContract;
         USDC_BASE = _usdcBase;
@@ -89,7 +94,7 @@ contract YieldMil is YieldMilStorage, Abortable, Revertable, Initializable {
             callOnRevert: true,
             abortAddress: address(this),
             revertMessage: message,
-            onRevertGasLimit: 100000
+            onRevertGasLimit: 100_000
         });
 
         GATEWAY.withdrawAndCall(
@@ -121,7 +126,7 @@ contract YieldMil is YieldMilStorage, Abortable, Revertable, Initializable {
             callOnRevert: true,
             abortAddress: address(this),
             revertMessage: message,
-            onRevertGasLimit: 100000
+            onRevertGasLimit: 100_000
         });
 
         GATEWAY.call(bytes.concat(bytes20(vault)), gasZRC20, message, callOptions, revertOptions);
@@ -197,6 +202,7 @@ contract YieldMil is YieldMilStorage, Abortable, Revertable, Initializable {
 
     /// @inheritdoc IYieldMil
     function rescueFunds(address to, IERC20 token, uint256 amount) external payable onlyOwner {
+        if (to == address(0)) revert ZeroAddress();
         if (address(token) == address(0)) {
             (bool s,) = to.call{value: amount}("");
             if (!s) revert TransferFailed();
