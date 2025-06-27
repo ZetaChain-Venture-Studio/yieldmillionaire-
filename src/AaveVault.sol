@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import "./AaveVaultStorage.sol";
+import "./interfaces/IAaveVault.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -13,14 +14,14 @@ import {Callable, MessageContext, RevertOptions} from "@zetachain/contracts/evm/
  * @notice A vault for the Aave protocol.
  * @dev Can only be called from ZetaChain.
  */
-contract AaveVault is AaveVaultStorage, Callable, Initializable {
+contract AaveVault is IAaveVault, AaveVaultStorage, Callable, Initializable {
     using SafeERC20 for IERC20;
     using Math for uint256;
 
     /// denominator for fee, 10000 == 100%
     uint256 constant SCALE = 10000;
     /// @inheritdoc IAaveVault
-    string public constant VERSION = "1.0.0";
+    string public constant VERSION = "1.0.1";
     /// @inheritdoc IAaveVault
     IPool public immutable POOL;
     /// @inheritdoc IAaveVault
@@ -44,6 +45,10 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
 
     constructor(IPool _pool, IERC20 _token, IERC20 _asset, IGatewayEVM _gateway, address _yieldMil) payable {
         _disableInitializers();
+        if (
+            address(_pool) == address(0) || address(_token) == address(0) || address(_asset) == address(0)
+                || address(_gateway) == address(0) || _yieldMil == address(0)
+        ) revert ZeroAddress();
         POOL = _pool;
         TOKEN = _token;
         ASSET = _asset;
@@ -135,6 +140,7 @@ contract AaveVault is AaveVaultStorage, Callable, Initializable {
 
     /// @inheritdoc IAaveVault
     function rescueFunds(address to, IERC20 token, uint256 amount) external payable onlyOwner {
+        if (to == address(0)) revert ZeroAddress();
         if (address(token) == address(0)) {
             (bool s,) = to.call{value: amount}("");
             if (!s) revert TransferFailed();

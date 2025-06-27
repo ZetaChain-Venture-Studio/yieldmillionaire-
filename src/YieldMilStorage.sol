@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import "./interfaces/IYieldMil.sol";
-
 /**
  * @title YieldMilStorage
  * @author https://github.com/nzmpi
  * @notice A storage contract for the YieldMil
  */
-abstract contract YieldMilStorage is IYieldMil {
+contract YieldMilStorage {
     // EIP-7201: keccak256(abi.encode(uint256(keccak256("yieldmil.storage.yieldmil")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 constant YIELDMIL_STORAGE_SLOT = 0xe964e1827ef0fbd29bea35034bc8c822443e26fbb8e8cf4e8c253caeee6fd700;
 

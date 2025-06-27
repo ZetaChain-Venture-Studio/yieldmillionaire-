@@ -1,0 +1,14 @@
+{
+  "extends": "solhint:recommended",
+  "rules": {
+    "no-global-import": "off",
+    "import-path-check": "off",
+    "duplicated-imports": "warn",
+    "gas-calldata-parameters": "warn",
+    "gas-increment-by-one": "warn",
+    "gas-length-in-loops": "warn",
+    "gas-multitoken1155": "warn",
+    "gas-struct-packing": "warn",
+    "func-visibility": ["warn",{"ignoreConstructors":true}]
+  }
+}

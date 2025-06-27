@@ -9,7 +9,7 @@ import {Script, console} from "forge-std/Script.sol";
 contract DeployYieldMilScript is Script {
     address constant admin = 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
     address constant implTestnet = 0x23C2BEea3B04cA176D5bebc093F3adac912ABd6d;
-    address constant implMainnet = 0x708D46908973dd696B2e182deDc5E8F80B42BF26;
+    address constant implMainnet = 0xBf0b503d6739278f69D989f62D3D129A1f4C265b;
     address constant proxyTestnet = 0x3a1E99a396607B822a68B194eE856d05fc38d848;
     address constant proxyMainnet = 0xE65eEe518A897618cBEe25898f80200E7988c81e;
 
@@ -41,7 +41,7 @@ contract DeployYieldMilScript is Script {
     });
 
     // deploy yieldMil implementation
-    function run() public {
+    /* function run() public {
         vm.startBroadcast();
         YieldMilConstructorArgs memory args;
         if (block.chainid == 7000) {
@@ -53,7 +53,7 @@ contract DeployYieldMilScript is Script {
         }
         new YieldMil(args.gateway, args.systemContract, args.usdcBase, args.ethBase, args.usdcPolygon, args.polPolygon);
         vm.stopBroadcast();
-    }
+    } */
 
     // deploy proxy without initializing
     /* function run() public {
@@ -79,11 +79,11 @@ contract DeployYieldMilScript is Script {
     } */
 
     // change implementation
-    /* function run() public {
+    function run() public {
         vm.startBroadcast();
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
         vm.stopBroadcast();
-    } */
+    }
 
     function _getImpl() internal view returns (address) {
         if (block.chainid == 7000) {

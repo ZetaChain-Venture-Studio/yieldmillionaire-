@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import "./interfaces/IAaveVault.sol";
-
 /**
  * @title AaveVaultStorage
  * @author https://github.com/nzmpi
  * @notice A storage contract for the AaveVault
  */
-abstract contract AaveVaultStorage is IAaveVault {
+contract AaveVaultStorage {
     // EIP-7201: keccak256(abi.encode(uint256(keccak256("yieldmil.storage.aavevault")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 constant AAVEVAULT_STORAGE_SLOT = 0xe86928725d42611a4d97f5379bd85d7fa4997f3070cc0d523b2643f8c6d82d00;
 
