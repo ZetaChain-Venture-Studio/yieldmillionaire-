@@ -11,8 +11,8 @@ import {Script, console} from "forge-std/Script.sol";
 contract DeployAaveVaultScript is Script {
     address constant admin = 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
     address constant implTestnet = 0x222478dd60d9B1E53fAB79227B6EC0456C9FBaD6;
-    address constant implBase = 0xCDb743013048eCB0a5f963E5Ebb3a171185406cf;
-    address constant implPolygon = 0x5B46A36C590acb5BB769A1e069e4CD7d4859a3A9;
+    address constant implBase = 0xF441cd47327af1A70A067Ff7f5cAd122bA1B7376;
+    address constant implPolygon = 0x9B4c2DF16f7F61E9739Ea79f2Bef174F1FbFbD69;
     address constant proxyTestnet = 0x2DEEdcE96f1B40301B7CA1F8877286f73dE87CF3;
     address constant proxyBase = 0xD4F3Ba2Fe4183c32A498Ad1ecF9Fc55308FcC029;
     address constant proxyPolygon = 0x1c60d7075b19C8107dEe803272c9d085A0eDf775;
@@ -51,7 +51,7 @@ contract DeployAaveVaultScript is Script {
     });
 
     // deploy AaveVault implementation
-    function run() public {
+    /* function run() public {
         vm.startBroadcast();
         AaveVaultConstructorArgs memory args;
         if (block.chainid == 8453) {
@@ -65,7 +65,7 @@ contract DeployAaveVaultScript is Script {
         }
         new AaveVault(args.pool, args.token, args.asset, args.gateway, args.yieldMil);
         vm.stopBroadcast();
-    }
+    } */
 
     // deploy proxy
     /* function run() public {
@@ -74,6 +74,13 @@ contract DeployAaveVaultScript is Script {
         new ProxyBase(_getImpl(), admin, data);
         vm.stopBroadcast();
     } */
+
+    // change implementation
+    function run() public {
+        vm.startBroadcast();
+        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
+        vm.stopBroadcast();
+    }
 
     // get an address at nonce + 1
     /* function run() public {
@@ -89,6 +96,18 @@ contract DeployAaveVaultScript is Script {
             return implPolygon;
         } else if (block.chainid == 421614) {
             return implTestnet;
+        } else {
+            revert("Unsupported network");
+        }
+    }
+
+    function _getProxy() internal view returns (address) {
+        if (block.chainid == 8453) {
+            return proxyBase;
+        } else if (block.chainid == 137) {
+            return proxyPolygon;
+        } else if (block.chainid == 421614) {
+            return proxyTestnet;
         } else {
             revert("Unsupported network");
         }
