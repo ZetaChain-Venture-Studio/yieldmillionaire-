@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import "./ISystemContract.sol";
+import "../utils/Types.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IGatewayZEVM} from "@zetachain/contracts/zevm/interfaces/IGatewayZEVM.sol";
 import {AbortContext, RevertContext} from "@zetachain/contracts/zevm/interfaces/IGatewayZEVM.sol";
@@ -13,33 +13,6 @@ import {IWETH9} from "@zetachain/contracts/zevm/interfaces/IWZETA.sol";
  * @notice Defines the interface of the YieldMil
  */
 interface IYieldMil {
-    enum Chain {
-        Base,
-        Polygon
-    }
-
-    enum Protocol {
-        Aave
-    }
-
-    /**
-     * A struct to store the context of a cross-chain call.
-     * @param targetChain - The target chain to which the call is made.
-     * @param protocol - The protocol to which the call is made.
-     * @param to - The address on behalf of which the deposit is made on an EVM or to which to receive the withdrawal.
-     * @param token - The token to transfer.
-     * @param amount - The amount to transfer.
-     * @param gasLimit - The gas limit for the call.
-     */
-    struct CallContext {
-        Chain targetChain;
-        Protocol protocol;
-        address to;
-        address token;
-        uint256 amount;
-        uint256 gasLimit;
-    }
-
     /**
      * A struct to store the context of the initialization call.
      * @param owner - The owner of the contract.
@@ -47,31 +20,37 @@ interface IYieldMil {
      * @param protocols - The supported protocols.
      * @param tokens - The supported tokens.
      * @param vaults - The deployed vaults on each chain.
+     * @param EVMEntryChains - The supported EVMEntry chains.
+     * @param EVMEntries - The deployed EVMEntries on each chain.
      */
     struct InitContext {
         address owner;
-        Chain[] chains;
+        uint256[] chains;
         Protocol[] protocols;
         address[] tokens;
         address[] vaults;
+        uint256[] EVMEntryChains;
+        address[] EVMEntries;
     }
 
     /**
      * Emitted when tokens are deposited.
      * @param depositor - The address of the depositor.
-     * @param chain - The chain to which the deposit is made.
+     * @param targetChain - The chain to which the deposit is made.
      * @param protocol - The protocol to which the deposit is made.
      * @param onBehalfOf - The address on behalf of which the deposit is made.
      * @param token - The token to deposit.
      * @param amount - The amount of the token to deposit.
+     * @param originalChain - The chain from which the deposit is made.
      */
     event Deposit(
         address indexed depositor,
-        Chain chain,
+        uint256 targetChain,
         Protocol protocol,
         address indexed onBehalfOf,
         address token,
-        uint256 amount
+        uint256 amount,
+        uint256 originalChain
     );
     /**
      * Emitted when a deposit is aborted.
@@ -83,6 +62,12 @@ interface IYieldMil {
      * @param revertContext - The revert context.
      */
     event DepositReverted(RevertContext revertContext);
+    /**
+     * Emitted when an EVMEntry is updated.
+     * @param chainId - The chain id.
+     * @param EVMEntry - The EVMEntry address.
+     */
+    event EVMEntryUpdated(uint256 indexed chainId, address indexed EVMEntry);
     /**
      * Emitted when funds are rescued.
      * @param to - The address to rescue to.
@@ -96,12 +81,20 @@ interface IYieldMil {
      */
     event OwnerUpdated(address indexed newOwner);
     /**
+     * Emitted when a refund is added.
+     * @param to - The address of the owner of the refund.
+     * @param token - The token of the refund.
+     * @param amount - The amount of the refund.
+     */
+    event RefundAdded(address indexed to, address indexed token, uint256 amount);
+    /**
      * Emitted when refunds are sent.
+     * @param from - The address of the owner of the refund.
      * @param to - The address to send the refund to.
      * @param token - The token to refund.
      * @param amount - The amount of the token to refund.
      */
-    event RefundSent(address indexed to, IERC20 indexed token, uint256 amount);
+    event RefundSent(address indexed from, address indexed to, address indexed token, uint256 amount);
     /**
      * Emitted when a vault is updated.
      * @param chain - The chain of the vault.
@@ -109,19 +102,14 @@ interface IYieldMil {
      * @param token - The token of the vault.
      * @param vault - The address of the vault.
      */
-    event VaultUpdated(Chain chain, Protocol protocol, address token, address indexed vault);
+    event VaultUpdated(uint256 chain, Protocol protocol, address token, address indexed vault);
     /**
      * Emitted when tokens are withdrawn.
      * @param sender - The address of the sender.
-     * @param chain - The chain from which the withdrawal is made.
-     * @param protocol - The protocol from which the withdrawal is made.
-     * @param to - The address to which the withdrawal is sent.
-     * @param token - The token to withdraw.
-     * @param amount - The amount of **shares** to withdraw.
+     * @param context - The withdrawal call context.
+     * @param originalChain - The chain on which the withdrawal is made.
      */
-    event Withdraw(
-        address indexed sender, Chain chain, Protocol protocol, address indexed to, address token, uint256 amount
-    );
+    event Withdraw(address indexed sender, CallContext context, uint256 originalChain);
     /**
      * Emitted when a withdrawal is aborted.
      * @param abortContext - The abort context.
@@ -140,6 +128,8 @@ interface IYieldMil {
 
     error InvalidAbort();
     error InvalidChain();
+    error InvalidEVMEntry();
+    error InvalidMessage(bytes);
     error InvalidVault();
     error InvalidRevert();
     error NotGateway();
@@ -158,13 +148,17 @@ interface IYieldMil {
      */
     function WZETA() external view returns (IWETH9);
     /**
+     * Returns Base chain id
+     */
+    function BASE_CHAIN_ID() external view returns (uint256);
+    /**
+     * Returns Polygon chain id
+     */
+    function POLYGON_CHAIN_ID() external view returns (uint256);
+    /**
      * Returns the GATEWAY contract address
      */
     function GATEWAY() external view returns (IGatewayZEVM);
-    /**
-     * Returns the SYSTEM_CONTRACT contract address
-     */
-    function SYSTEM_CONTRACT() external view returns (ISystemContract);
     /**
      * Returns the USDC_BASE contract address
      */
@@ -201,14 +195,27 @@ interface IYieldMil {
      */
     function withdraw(CallContext calldata context) external payable;
     /**
-     * Adds a vault to the contract.
+     * Withdraws the refunds that msg.sender has.
+     * @param to - The recipient
+     * @param token - The token address
+     */
+    function withdrawRefunds(address to, address token) external;
+    /**
+     * Updates a vault in the contract.
      * @dev Only callable by the owner.
      * @param chain - The chain of the vault.
      * @param protocol - The protocol of the vault.
      * @param token - The token of the vault.
      * @param vault - The address of the vault.
      */
-    function addVault(Chain chain, Protocol protocol, address token, address vault) external payable;
+    function updateVault(uint256 chain, Protocol protocol, address token, address vault) external payable;
+    /**
+     * Updates an EVMEntry address in the contract.
+     * @dev Only callable by the owner.
+     * @param chainId - The chain id.
+     * @param EVMEntry - The EVMEntry address.
+     */
+    function updateEVMEntry(uint256 chainId, address EVMEntry) external payable;
     /**
      * Transfers ownership of the contract.
      * @dev Only callable by the owner.
@@ -227,10 +234,11 @@ interface IYieldMil {
     /**
      * Sends a refund.
      * @dev Only callable by the owner.
+     * @param from - The address to send the refund from.
      * @param to - The address to send the refund to.
      * @param token - The token to refund.
      */
-    function sendRefund(address to, IERC20 token) external payable;
+    function sendRefund(address from, address to, address token) external payable;
     /**
      * Returns the owner of the contract.
      */
@@ -242,11 +250,11 @@ interface IYieldMil {
      * @param token - The token of the vault.
      * @return The address of the vault.
      */
-    function getVault(Chain chain, Protocol protocol, address token) external view returns (address);
+    function getVault(uint256 chain, Protocol protocol, address token) external view returns (address);
     /**
      * Gets the refunds for the given parameters.
-     * @param to - The address of the recipient of the refunds.
+     * @param from - The address of the owner of the refunds.
      * @param token - The token of the refunds.
      */
-    function getRefunds(address to, address token) external view returns (uint256);
+    function getRefunds(address from, address token) external view returns (uint256);
 }
