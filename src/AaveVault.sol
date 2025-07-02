@@ -1,27 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import "./AaveVaultStorage.sol";
 import "./interfaces/IAaveVault.sol";
+import "./interfaces/IEVMEntry.sol";
+import "./utils/AaveVaultStorage.sol";
+import {Protocol} from "./utils/Types.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {Callable, MessageContext, RevertOptions} from "@zetachain/contracts/evm/interfaces/IGatewayEVM.sol";
+import {Callable, MessageContext} from "@zetachain/contracts/evm/interfaces/IGatewayEVM.sol";
 
 /**
  * @title AaveVault
  * @author https://github.com/nzmpi
  * @notice A vault for the Aave protocol.
- * @dev Can only be called from ZetaChain.
+ * @dev Can only be called from ZetaChain or EVMEntry.
  */
 contract AaveVault is IAaveVault, AaveVaultStorage, Callable, Initializable {
     using SafeERC20 for IERC20;
     using Math for uint256;
 
     /// denominator for fee, 10000 == 100%
-    uint256 constant SCALE = 10000;
+    uint256 internal constant SCALE = 10000;
     /// @inheritdoc IAaveVault
-    string public constant VERSION = "1.0.1";
+    string public constant VERSION = "1.1.0";
     /// @inheritdoc IAaveVault
     IPool public immutable POOL;
     /// @inheritdoc IAaveVault
@@ -32,6 +34,8 @@ contract AaveVault is IAaveVault, AaveVaultStorage, Callable, Initializable {
     IGatewayEVM public immutable GATEWAY;
     /// @inheritdoc IAaveVault
     address public immutable YIELDMIL;
+    /// @inheritdoc IAaveVault
+    address public immutable EVMENTRY;
 
     modifier onlyGateway() {
         if (msg.sender != address(GATEWAY)) revert NotGateway();
@@ -43,17 +47,25 @@ contract AaveVault is IAaveVault, AaveVaultStorage, Callable, Initializable {
         _;
     }
 
-    constructor(IPool _pool, IERC20 _token, IERC20 _asset, IGatewayEVM _gateway, address _yieldMil) payable {
+    modifier onlyEVMEntry() {
+        if (msg.sender != EVMENTRY) revert NotEVMEntry();
+        _;
+    }
+
+    constructor(IPool _pool, IERC20 _token, IERC20 _asset, IGatewayEVM _gateway, address _yieldMil, address _evmentry)
+        payable
+    {
         _disableInitializers();
         if (
             address(_pool) == address(0) || address(_token) == address(0) || address(_asset) == address(0)
-                || address(_gateway) == address(0) || _yieldMil == address(0)
+                || address(_gateway) == address(0) || _yieldMil == address(0) || _evmentry == address(0)
         ) revert ZeroAddress();
         POOL = _pool;
         TOKEN = _token;
         ASSET = _asset;
         GATEWAY = _gateway;
         YIELDMIL = _yieldMil;
+        EVMENTRY = _evmentry;
     }
 
     /// @inheritdoc Callable
@@ -65,13 +77,23 @@ contract AaveVault is IAaveVault, AaveVaultStorage, Callable, Initializable {
     {
         if (context.sender != YIELDMIL) revert NotYieldMil();
         if (message[0] == hex"01") {
-            _deposit(message[1:message.length]);
+            _deposit(address(GATEWAY), message[1:message.length]);
         } else if (message[0] == hex"02") {
             _withdraw(message[1:message.length]);
         } else {
             revert InvalidMessage(message);
         }
         return "";
+    }
+
+    /// @inheritdoc IVault
+    function deposit(bytes calldata message) external onlyEVMEntry {
+        _deposit(EVMENTRY, message);
+    }
+
+    /// @inheritdoc IVault
+    function withdraw(bytes calldata message) external onlyEVMEntry {
+        _withdraw(message);
     }
 
     /**
@@ -88,8 +110,8 @@ contract AaveVault is IAaveVault, AaveVaultStorage, Callable, Initializable {
 
         Storage storage s = _getStorage();
         s.owner = owner;
-        s.fee = fee;
         emit OwnerUpdated(owner);
+        s.fee = fee;
         emit FeeUpdated(fee);
 
         uint256 shares = _convertToShares(amount);
@@ -105,7 +127,7 @@ contract AaveVault is IAaveVault, AaveVaultStorage, Callable, Initializable {
         _getStorage().lastVaultBalance = ASSET.balanceOf(address(this));
         _mint(owner, shares);
 
-        emit Deposit(owner, owner, amount, shares);
+        emit Deposit(owner, owner, owner, amount, shares, block.chainid);
     }
 
     /// @inheritdoc IAaveVault
@@ -141,13 +163,14 @@ contract AaveVault is IAaveVault, AaveVaultStorage, Callable, Initializable {
     /// @inheritdoc IAaveVault
     function rescueFunds(address to, IERC20 token, uint256 amount) external payable onlyOwner {
         if (to == address(0)) revert ZeroAddress();
+        emit FundsRescued(to, token, amount);
+
         if (address(token) == address(0)) {
             (bool s,) = to.call{value: amount}("");
             if (!s) revert TransferFailed();
         } else {
             token.safeTransfer(to, amount);
         }
-        emit FundsRescued(to, token, amount);
     }
 
     /// @inheritdoc IAaveVault
@@ -221,29 +244,32 @@ contract AaveVault is IAaveVault, AaveVaultStorage, Callable, Initializable {
 
     /**
      * Deposits assets and mints shares.
-     * @param message - Message containing sender, onBehalfOf and amount.
+     * @param sender - Sender - Gateway or EVMEntry.
+     * @param message - Message containing depositor, onBehalfOf, amount and originChainId.
      */
-    function _deposit(bytes calldata message) internal {
-        (address sender, address onBehalfOf, uint256 amount) = abi.decode(message, (address, address, uint256));
+    function _deposit(address sender, bytes calldata message) internal {
+        (address depositor, address onBehalfOf, uint256 amount, uint256 originChainId) =
+            abi.decode(message, (address, address, uint256, uint256));
         _accrueYield();
         uint256 shares = _convertToShares(amount);
         if (shares == 0) revert ZeroShares();
 
-        TOKEN.safeTransferFrom(address(GATEWAY), address(this), amount);
+        TOKEN.safeTransferFrom(sender, address(this), amount);
         POOL.supply(address(TOKEN), amount, address(this), 0);
         _getStorage().lastVaultBalance = ASSET.balanceOf(address(this));
         _mint(onBehalfOf, shares);
 
-        emit Deposit(sender, onBehalfOf, amount, shares);
+        emit Deposit(depositor, onBehalfOf, sender, amount, shares, originChainId);
     }
 
     /**
-     * Withdraws assets from the pool, burns shares and sends tokens to Zetachain.
+     * Withdraws assets from the pool, burns shares and sends tokens to a receiver or to EVMEntry.
      * @dev If user tries to withdraw more than they have, it will underflow.
-     * @param message - Message containing sender and shares.
+     * @param message - Message containing sender, receiver, shares and destinationChain.
      */
     function _withdraw(bytes calldata message) internal {
-        (address sender, address receiver, uint256 shares) = abi.decode(message, (address, address, uint256));
+        (address sender, address receiver, uint256 shares, uint256 destinationChain) =
+            abi.decode(message, (address, address, uint256, uint256));
         _accrueYield();
         uint256 amount = _convertToAssets(shares);
         if (amount == 0) revert ZeroAssets();
@@ -251,9 +277,15 @@ contract AaveVault is IAaveVault, AaveVaultStorage, Callable, Initializable {
         _burn(sender, shares);
         amount = POOL.withdraw(address(TOKEN), amount, address(this));
         _getStorage().lastVaultBalance = ASSET.balanceOf(address(this));
-        _sendToZetachain(receiver, amount);
+        emit Withdraw(sender, receiver, amount, shares, destinationChain);
 
-        emit Withdraw(sender, receiver, amount, shares);
+        if (destinationChain == block.chainid) {
+            TOKEN.safeTransfer(receiver, amount);
+        } else {
+            TOKEN.safeTransfer(EVMENTRY, amount);
+            bytes memory vaultMessage = abi.encode(sender, receiver, destinationChain);
+            IEVMEntry(EVMENTRY).onCallback(sender, Protocol.Aave, address(TOKEN), amount, vaultMessage);
+        }
     }
 
     /**
@@ -288,19 +320,5 @@ contract AaveVault is IAaveVault, AaveVaultStorage, Callable, Initializable {
     function _convertToAssets(uint256 shares) internal view returns (uint256) {
         uint256 supply = totalSupply();
         return (supply == 0) ? shares : shares.mulDiv(totalAssets(), supply, Math.Rounding.Floor);
-    }
-
-    /**
-     * Sends tokens to Zetachain.
-     */
-    function _sendToZetachain(address receiver, uint256 amount) internal {
-        RevertOptions memory revertOptions = RevertOptions({
-            revertAddress: address(0),
-            callOnRevert: false,
-            abortAddress: YIELDMIL,
-            revertMessage: abi.encode(receiver),
-            onRevertGasLimit: 0
-        });
-        GATEWAY.deposit(receiver, amount, address(TOKEN), revertOptions);
     }
 }

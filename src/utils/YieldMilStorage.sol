@@ -8,7 +8,7 @@ pragma solidity ^0.8.26;
  */
 contract YieldMilStorage {
     // EIP-7201: keccak256(abi.encode(uint256(keccak256("yieldmil.storage.yieldmil")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 constant YIELDMIL_STORAGE_SLOT = 0xe964e1827ef0fbd29bea35034bc8c822443e26fbb8e8cf4e8c253caeee6fd700;
+    bytes32 private constant YIELDMIL_STORAGE_SLOT = 0xe964e1827ef0fbd29bea35034bc8c822443e26fbb8e8cf4e8c253caeee6fd700;
 
     /**
      * A storage struct for the YieldMil.
@@ -22,6 +22,7 @@ contract YieldMilStorage {
         address owner;
         mapping(bytes32 key => address) vaults;
         mapping(address owner => mapping(address token => uint256 amount)) refunds;
+        mapping(uint256 chainId => address EVMEntry) EVMEntries;
     }
 
     /**

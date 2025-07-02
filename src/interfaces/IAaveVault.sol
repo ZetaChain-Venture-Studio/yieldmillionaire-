@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
+import {IVault} from "./IVault.sol";
 import {IPool} from "@aave/contracts/interfaces/IPool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IGatewayEVM} from "@zetachain/contracts/evm/interfaces/IGatewayEVM.sol";
@@ -10,15 +11,24 @@ import {IGatewayEVM} from "@zetachain/contracts/evm/interfaces/IGatewayEVM.sol";
  * @author https://github.com/nzmpi
  * @notice An interface for the AaveVault
  */
-interface IAaveVault {
+interface IAaveVault is IVault {
     /**
      * Emitted when a deposit is made.
      * @param depositor - The address of the depositor.
      * @param onBehalfOf - The address on behalf of which the deposit is made.
+     * @param sender - The address of the token sender - Gateway or EVMEntry.
      * @param assets - The amount of assets deposited.
      * @param shares - The amount of shares minted.
+     * @param chainId - The original chain ID.
      */
-    event Deposit(address indexed depositor, address indexed onBehalfOf, uint256 assets, uint256 shares);
+    event Deposit(
+        address indexed depositor,
+        address indexed onBehalfOf,
+        address indexed sender,
+        uint256 assets,
+        uint256 shares,
+        uint256 chainId
+    );
     /**
      * Emitted when the fee is updated.
      * @param newFee - The new fee.
@@ -48,11 +58,15 @@ interface IAaveVault {
      * @param receiver - The address to withdraw to on ZetaChain.
      * @param assets - The amount of assets withdrawn.
      * @param shares - The amount of shares withdrawn.
+     * @param destinationChain - The destination chain ID.
      */
-    event Withdraw(address indexed sender, address indexed receiver, uint256 assets, uint256 shares);
+    event Withdraw(
+        address indexed sender, address indexed receiver, uint256 assets, uint256 shares, uint256 destinationChain
+    );
 
     error InvalidFee();
     error InvalidMessage(bytes);
+    error NotEVMEntry();
     error NotGateway();
     error NotOwner();
     error NotYieldMil();
@@ -86,6 +100,10 @@ interface IAaveVault {
      * Returns the YIELDMIL contract address.
      */
     function YIELDMIL() external view returns (address);
+    /**
+     * Returns the EVMENTRY contract address.
+     */
+    function EVMENTRY() external view returns (address);
 
     /**
      * Sets the fee.
