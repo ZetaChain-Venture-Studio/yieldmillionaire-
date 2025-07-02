@@ -22,6 +22,7 @@ contract YieldMilStorage {
         address owner;
         mapping(bytes32 key => address) vaults;
         mapping(address owner => mapping(address token => uint256 amount)) refunds;
+        mapping(uint256 chainId => address EVMEntry) EVMEntries;
     }
 
     /**
