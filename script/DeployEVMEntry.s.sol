@@ -1,0 +1,124 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
+
+import {EVMEntry} from "../src/EVMEntry.sol";
+import {ProxyBase} from "../src/ProxyBase.sol";
+import "../src/utils/Types.sol";
+import {IGatewayEVM} from "@zetachain/contracts/evm/interfaces/IGatewayEVM.sol";
+import {Script, console} from "forge-std/Script.sol";
+
+contract DeployEVMEntryScript is Script {
+    uint256 immutable chainId = block.chainid;
+    address immutable admin =
+        chainId == 421614 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
+    address constant implTestnet = 0x4fDaac54Ee213A032C1C077E1CCAF515E429FA1f;
+    address constant implBase = address(0);
+    address constant implPolygon = address(0);
+    address constant proxyTestnet = 0x5789500c258fB5cd222fF83f07576E4DF3B5401e;
+    address constant proxyBase = address(0);
+    address constant proxyPolygon = address(0);
+
+    struct EVMEntryConstructorArgs {
+        IGatewayEVM gateway;
+        address yieldMil;
+        address usdc;
+    }
+
+    // arbitrum
+    EVMEntryConstructorArgs testnetArgs = EVMEntryConstructorArgs({
+        gateway: IGatewayEVM(0x0dA86Dc3F9B71F84a0E97B0e2291e50B7a5df10f),
+        yieldMil: 0x3a1E99a396607B822a68B194eE856d05fc38d848, // proxy
+        usdc: 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
+    });
+
+    EVMEntryConstructorArgs baseArgs = EVMEntryConstructorArgs({
+        gateway: IGatewayEVM(0x48B9AACC350b20147001f88821d31731Ba4C30ed),
+        yieldMil: 0xE65eEe518A897618cBEe25898f80200E7988c81e, // proxy
+        usdc: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+    });
+
+    EVMEntryConstructorArgs polygonArgs = EVMEntryConstructorArgs({
+        gateway: IGatewayEVM(0x48B9AACC350b20147001f88821d31731Ba4C30ed),
+        yieldMil: 0xE65eEe518A897618cBEe25898f80200E7988c81e, // proxy
+        usdc: 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359
+    });
+
+    // deploy EVMEntry implementation
+    /* function run() public {
+        vm.startBroadcast();
+        EVMEntryConstructorArgs memory args;
+        if (chainId == 8453) {
+            args = baseArgs;
+        } else if (chainId == 137) {
+            args = polygonArgs;
+        } else if (chainId == 421614) {
+            args = testnetArgs;
+        } else {
+            revert("Unsupported network");
+        }
+        new EVMEntry(args.gateway, args.yieldMil, args.usdc);
+        vm.stopBroadcast();
+    } */
+
+    // deploy proxy
+    function run() public {
+        vm.startBroadcast();
+        (Protocol[] memory protocols, address[] memory tokens, address[] memory vaults) = _getInitArgs();
+        bytes memory data = abi.encodeCall(EVMEntry.initialize, (admin, protocols, tokens, vaults));
+        new ProxyBase(_getImpl(), admin, data);
+        vm.stopBroadcast();
+    }
+
+    // change implementation
+    /* function run() public {
+        vm.startBroadcast();
+        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
+        vm.stopBroadcast();
+    } */
+
+    function _getImpl() internal view returns (address) {
+        if (chainId == 8453) {
+            return implBase;
+        } else if (chainId == 137) {
+            return implPolygon;
+        } else if (chainId == 421614) {
+            return implTestnet;
+        } else {
+            revert("Unsupported network");
+        }
+    }
+
+    function _getProxy() internal view returns (address) {
+        if (chainId == 8453) {
+            return proxyBase;
+        } else if (chainId == 137) {
+            return proxyPolygon;
+        } else if (chainId == 421614) {
+            return proxyTestnet;
+        } else {
+            revert("Unsupported network");
+        }
+    }
+
+    function _getInitArgs()
+        internal
+        view
+        returns (Protocol[] memory protocols, address[] memory tokens, address[] memory vaults)
+    {
+        protocols = new Protocol[](1);
+        protocols[0] = Protocol.Aave;
+        tokens = new address[](1);
+        vaults = new address[](1);
+
+        if (chainId == 8453) {
+            tokens[0] = baseArgs.usdc;
+            vaults[0] = 0xD4F3Ba2Fe4183c32A498Ad1ecF9Fc55308FcC029;
+        } else if (chainId == 137) {
+            tokens[0] = polygonArgs.usdc;
+            vaults[0] = 0x1c60d7075b19C8107dEe803272c9d085A0eDf775;
+        } else if (chainId == 421614) {
+            tokens[0] = testnetArgs.usdc;
+            vaults[0] = 0x2DEEdcE96f1B40301B7CA1F8877286f73dE87CF3;
+        }
+    }
+}
