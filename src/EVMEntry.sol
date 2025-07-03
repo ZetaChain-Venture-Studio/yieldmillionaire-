@@ -75,6 +75,7 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
             _getStorage().vaults[_getKey(protocol, token)] = vault;
             emit VaultUpdated(protocol, token, vault);
             IERC20(token).approve(vault, type(uint256).max);
+            IERC20(token).approve(address(GATEWAY), type(uint256).max);
         }
     }
 
@@ -144,7 +145,7 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
             revertAddress: address(this),
             callOnRevert: true,
             abortAddress: YIELDMIL,
-            revertMessage: bytes.concat(hex"03", bytes20(sender)),
+            revertMessage: bytes.concat(hex"03", abi.encode(sender)),
             onRevertGasLimit: 250_000
         });
         GATEWAY.depositAndCall(YIELDMIL, amount, token, message, revertOptions);
