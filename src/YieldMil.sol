@@ -303,6 +303,11 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     }
 
     /// @inheritdoc IYieldMil
+    function getEVMEntry(uint256 chainId) external view returns (address) {
+        return _getStorage().EVMEntries[chainId];
+    }
+
+    /// @inheritdoc IYieldMil
     function getRefunds(address from, address token) external view returns (uint256) {
         return _getStorage().refunds[from][token];
     }

@@ -252,6 +252,11 @@ interface IYieldMil {
      */
     function getVault(uint256 chain, Protocol protocol, address token) external view returns (address);
     /**
+     * Gets the EVMEntry address for the given chain id.
+     * @param chainId - The chain id.
+     */
+    function getEVMEntry(uint256 chainId) external view returns (address);
+    /**
      * Gets the refunds for the given parameters.
      * @param from - The address of the owner of the refunds.
      * @param token - The token of the refunds.
