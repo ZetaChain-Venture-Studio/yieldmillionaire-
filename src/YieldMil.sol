@@ -204,11 +204,11 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     /// @inheritdoc Revertable
     function onRevert(RevertContext calldata revertContext) external onlyGateway {
         if (revertContext.sender != address(this)) revert InvalidRevert();
-        (address sender,,, uint256 chainId) = abi.decode(
-            revertContext.revertMessage[1:revertContext.revertMessage.length], (address, address, uint256, uint256)
-        );
 
         if (revertContext.amount != 0) {
+            (address sender,,, uint256 chainId) = abi.decode(
+                revertContext.revertMessage[1:revertContext.revertMessage.length], (address, address, uint256, uint256)
+            );
             if (chainId == block.chainid) {
                 // return tokens to the original sender
                 IERC20(revertContext.asset).safeTransfer(sender, revertContext.amount);
@@ -230,19 +230,23 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
 
     /// @inheritdoc Abortable
     function onAbort(AbortContext calldata abortContext) external onlyGateway {
-        address sender = address(bytes20(abortContext.sender));
-        address receiver;
-        if (sender == address(this)) {
-            (receiver,,,) = abi.decode(
-                abortContext.revertMessage[1:abortContext.revertMessage.length], (address, address, uint256, uint256)
-            );
-        } else if (sender == _getStorage().EVMEntries[abortContext.chainID]) {
-            receiver = abi.decode(abortContext.revertMessage[1:abortContext.revertMessage.length], (address));
-        } else {
-            revert InvalidAbort();
+        uint256 amount = abortContext.amount;
+        if (amount != 0) {
+            address sender = address(bytes20(abortContext.sender));
+            address receiver;
+            if (sender == address(this)) {
+                (receiver,,,) = abi.decode(
+                    abortContext.revertMessage[1:abortContext.revertMessage.length],
+                    (address, address, uint256, uint256)
+                );
+            } else if (sender == _getStorage().EVMEntries[abortContext.chainID]) {
+                receiver = abi.decode(abortContext.revertMessage[1:abortContext.revertMessage.length], (address));
+            } else {
+                revert InvalidAbort();
+            }
+            _getStorage().refunds[receiver][abortContext.asset] += amount;
+            emit RefundAdded(receiver, abortContext.asset, amount);
         }
-        _getStorage().refunds[receiver][abortContext.asset] += abortContext.amount;
-        emit RefundAdded(receiver, abortContext.asset, abortContext.amount);
 
         bytes1 flag = abortContext.revertMessage[0];
         if (flag == hex"01") {
