@@ -116,11 +116,6 @@ interface IYieldMil {
      */
     event WithdrawAborted(AbortContext abortContext);
     /**
-     * Emitted when a withdrawal is aborted on an EVM.
-     * @param abortContext - The abort context.
-     */
-    event WithdrawEVMAborted(AbortContext abortContext);
-    /**
      * Emitted when a withdrawal is reverted.
      * @param revertContext - The revert context.
      */
