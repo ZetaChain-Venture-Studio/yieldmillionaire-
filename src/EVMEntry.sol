@@ -211,6 +211,25 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
         return _getStorage().vaults[_getKey(protocol, token)];
     }
 
+    /// @inheritdoc IEVMEntry
+    function getAssetsAndShares(address owner, address token)
+        external
+        view
+        returns (uint256[] memory assets, uint256[] memory shares)
+    {
+        uint256 len = uint256(type(Protocol).max) + 1;
+        assets = new uint256[](len);
+        shares = new uint256[](len);
+        for (uint256 i; i < len; ++i) {
+            address vault = _getStorage().vaults[_getKey(Protocol(i), token)];
+            if (vault == address(0)) {
+                (assets[i], shares[i]) = (0, 0);
+            } else {
+                (assets[i], shares[i]) = IVault(vault).getAssetsAndShares(owner);
+            }
+        }
+    }
+
     /**
      * Returns the key for the given protocol and token
      * @param protocol - The protocol

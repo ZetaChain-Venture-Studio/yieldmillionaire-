@@ -128,4 +128,17 @@ interface IEVMEntry {
      * @param token - The token address
      */
     function getVault(Protocol protocol, address token) external view returns (address);
+    /**
+     * Gets the assets and shares from all protocols that supports token deposits
+     * @notice Returns an array of values for each protocol in the same order as listed in Protocol
+     * @notice If a vault is not found, the assets and shares are set to 0
+     * @param owner - The address of the owner
+     * @param token - The token address
+     * @return assets - The amount of assets, e.g. USDC
+     * @return shares - The amount of shares in a vault
+     */
+    function getAssetsAndShares(address owner, address token)
+        external
+        view
+        returns (uint256[] memory assets, uint256[] memory shares);
 }
