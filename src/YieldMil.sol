@@ -379,7 +379,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             onRevertGasLimit: 250_000
         });
 
-        emit Withdraw(msg.sender, context, chainId);
+        emit Withdraw(sender, context, chainId);
 
         GATEWAY.call(bytes.concat(bytes20(vault)), gasZRC20, message, callOptions, revertOptions);
 
