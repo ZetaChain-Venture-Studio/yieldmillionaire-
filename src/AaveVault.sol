@@ -183,7 +183,7 @@ contract AaveVault is IAaveVault, AaveVaultStorage, Callable, Initializable {
         return _getStorage().owner;
     }
 
-    /// @inheritdoc IAaveVault
+    /// @inheritdoc IVault
     function getAssetsAndShares(address owner) external view returns (uint256 assets, uint256 shares) {
         shares = _getStorage().shareBalanceOf[owner];
         assets = _convertToAssets(shares);

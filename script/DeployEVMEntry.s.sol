@@ -11,7 +11,7 @@ contract DeployEVMEntryScript is Script {
     uint256 immutable chainId = block.chainid;
     address immutable admin =
         chainId == 421614 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
-    address constant implTestnet = 0x4fDaac54Ee213A032C1C077E1CCAF515E429FA1f;
+    address constant implTestnet = 0x2CeFaFcA1eBba884718cB512B9C5D18061f2152A;
     address constant implBase = address(0);
     address constant implPolygon = address(0);
     address constant proxyTestnet = 0x5789500c258fB5cd222fF83f07576E4DF3B5401e;
@@ -60,19 +60,19 @@ contract DeployEVMEntryScript is Script {
         vm.stopBroadcast();
     } */
 
-    // deploy proxy
+    // change implementation
     function run() public {
+        vm.startBroadcast();
+        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
+        vm.stopBroadcast();
+    }
+
+    // deploy proxy
+    /* function run() public {
         vm.startBroadcast();
         (Protocol[] memory protocols, address[] memory tokens, address[] memory vaults) = _getInitArgs();
         bytes memory data = abi.encodeCall(EVMEntry.initialize, (admin, protocols, tokens, vaults));
         new ProxyBase(_getImpl(), admin, data);
-        vm.stopBroadcast();
-    }
-
-    // change implementation
-    /* function run() public {
-        vm.startBroadcast();
-        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
         vm.stopBroadcast();
     } */
 
