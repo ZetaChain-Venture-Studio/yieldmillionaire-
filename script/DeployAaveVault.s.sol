@@ -13,8 +13,8 @@ contract DeployAaveVaultScript is Script {
     address immutable admin =
         chainId == 421614 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
     address constant implTestnet = 0x3695E1C3e362D86CCA3520Abc335eFfe58F33423;
-    address constant implBase = 0xF441cd47327af1A70A067Ff7f5cAd122bA1B7376;
-    address constant implPolygon = 0x9B4c2DF16f7F61E9739Ea79f2Bef174F1FbFbD69;
+    address constant implBase = 0x862f46d57B3aa0FD3592D2DbA8Ea1cA4A11e846E;
+    address constant implPolygon = 0x8bcd92E87B3f67457C80F085379Ef7fC65d3bCcD;
     address constant proxyTestnet = 0x2DEEdcE96f1B40301B7CA1F8877286f73dE87CF3;
     address constant proxyBase = 0xD4F3Ba2Fe4183c32A498Ad1ecF9Fc55308FcC029;
     address constant proxyPolygon = 0x1c60d7075b19C8107dEe803272c9d085A0eDf775;
@@ -44,7 +44,7 @@ contract DeployAaveVaultScript is Script {
         asset: IERC20(0x4e65fE4DbA92790696d040ac24Aa414708F5c0AB),
         gateway: IGatewayEVM(0x48B9AACC350b20147001f88821d31731Ba4C30ed),
         yieldMil: 0xE65eEe518A897618cBEe25898f80200E7988c81e, // proxy
-        evmEntry: address(0) // proxy
+        evmEntry: 0xCB513DB80C6C76593770Fc4a1827d5Ab8186b0cD // proxy
     });
 
     AaveVaultConstructorArgs polygonArgs = AaveVaultConstructorArgs({
@@ -53,7 +53,7 @@ contract DeployAaveVaultScript is Script {
         asset: IERC20(0xA4D94019934D8333Ef880ABFFbF2FDd611C762BD),
         gateway: IGatewayEVM(0x48B9AACC350b20147001f88821d31731Ba4C30ed),
         yieldMil: 0xE65eEe518A897618cBEe25898f80200E7988c81e, // proxy
-        evmEntry: address(0) // proxy
+        evmEntry: 0x1547e8603048137deFf6Fc029C1778E2889A0F83 // proxy
     });
 
     // deploy AaveVault implementation
@@ -73,6 +73,13 @@ contract DeployAaveVaultScript is Script {
         vm.stopBroadcast();
     } */
 
+    // change implementation
+    function run() public {
+        vm.startBroadcast();
+        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
+        vm.stopBroadcast();
+    }
+
     // deploy proxy
     /* function run() public {
         vm.startBroadcast();
@@ -80,13 +87,6 @@ contract DeployAaveVaultScript is Script {
         new ProxyBase(_getImpl(), admin, data);
         vm.stopBroadcast();
     } */
-
-    // change implementation
-    function run() public {
-        vm.startBroadcast();
-        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
-        vm.stopBroadcast();
-    }
 
     // get an address at nonce + 1
     /* function run() public {

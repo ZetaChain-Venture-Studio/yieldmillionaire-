@@ -11,6 +11,11 @@ remappings = [
     "@aave/contracts=lib/aave-v3-origin/src/contracts"
 ]
 
+[rpc_endpoints]
+base = "${BASE_RPC_URL}"
+polygon = "${POLYGON_RPC_URL}"
+zetachain = "${ZETACHAIN_RPC_URL}"
+
 [fmt]
 sort_imports = true
 

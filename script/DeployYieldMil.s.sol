@@ -12,7 +12,7 @@ contract DeployYieldMilScript is Script {
     address immutable admin =
         chainId == 7001 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
     address constant implTestnet = 0x599fA4C6952ef77d959DD7007b2C2e9183edAe3F;
-    address constant implMainnet = 0xBf0b503d6739278f69D989f62D3D129A1f4C265b;
+    address constant implMainnet = 0xE3990A03c66F88ddA3970eFdb2146e1D15d95a1e;
     address constant proxyTestnet = 0x3a1E99a396607B822a68B194eE856d05fc38d848;
     address constant proxyMainnet = 0xE65eEe518A897618cBEe25898f80200E7988c81e;
 
@@ -55,6 +55,13 @@ contract DeployYieldMilScript is Script {
         vm.stopBroadcast();
     } */
 
+    // change implementation
+    function run() public {
+        vm.startBroadcast();
+        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
+        vm.stopBroadcast();
+    }
+
     // deploy proxy without initializing
     /* function run() public {
         vm.startBroadcast();
@@ -86,13 +93,6 @@ contract DeployYieldMilScript is Script {
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), data);
         vm.stopBroadcast();
     } */
-
-    // change implementation
-    function run() public {
-        vm.startBroadcast();
-        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
-        vm.stopBroadcast();
-    }
 
     function _getImpl() internal view returns (address) {
         if (chainId == 7000) {
@@ -141,8 +141,8 @@ contract DeployYieldMilScript is Script {
             vaults[1] = 0x1c60d7075b19C8107dEe803272c9d085A0eDf775;
             EVMEntryChains = chains;
             EVMEntries = new address[](2);
-            EVMEntries[0] = address(0);
-            EVMEntries[1] = address(0);
+            EVMEntries[0] = 0xCB513DB80C6C76593770Fc4a1827d5Ab8186b0cD;
+            EVMEntries[1] = 0x1547e8603048137deFf6Fc029C1778E2889A0F83;
         } else if (chainId == 7001) {
             chains = new uint256[](1);
             chains[0] = 421614;
