@@ -17,7 +17,7 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
     using SafeERC20 for IERC20;
 
     /// @inheritdoc IEVMEntry
-    string public constant VERSION = "1.1.0";
+    string public constant VERSION = "1.1.1";
     /// @inheritdoc IEVMEntry
     IGatewayEVM public immutable GATEWAY;
     /// @inheritdoc IEVMEntry
@@ -116,6 +116,7 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
         emit Withdraw(msg.sender, context);
 
         if (context.targetChain == block.chainid) {
+            if (msg.value != 0) revert NotZeroValue();
             address vault = _getStorage().vaults[_getKey(context.protocol, context.token)];
             if (vault == address(0)) revert InvalidVault();
             bytes memory message = abi.encode(msg.sender, context.to, context.amount, context.destinationChain);

@@ -57,6 +57,7 @@ interface IEVMEntry {
     error NotUSDC();
     error NotVault();
     error NotEVMEntry();
+    error NotZeroValue();
     error TransferFailed();
     error ZeroAddress();
     error ZeroValue();
