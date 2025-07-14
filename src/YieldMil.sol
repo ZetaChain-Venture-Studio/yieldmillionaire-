@@ -130,7 +130,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
                 abi.decode(message[1:message.length], (address, CallContext));
             callContext.token = _getUSDC(callContext.targetChain);
             // TODO: this slippage only works for USDCs
-            callContext.amount = zrc20.swapExactTokensForTokens(amount, callContext.token, amount * 95 / 100);
+            callContext.amount = zrc20.swapExactTokensForTokens(amount, callContext.token, amount * 90 / 100);
             _deposit(sender, callContext, context.chainID);
         } else if (message[0] == hex"02") {
             (address sender, CallContext memory callContext) =
@@ -155,7 +155,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             } else {
                 address targetToken = _getUSDC(destinationChain);
                 callContext.token = targetToken;
-                amount = zrc20.swapExactTokensForTokens(amount, targetToken, amount * 95 / 100);
+                amount = zrc20.swapExactTokensForTokens(amount, targetToken, amount * 90 / 100);
                 (address gasZRC20, uint256 gasFee) = IZRC20(targetToken).withdrawGasFeeWithGasLimit(70_000);
                 callContext.gasLimit = 70_000;
                 amount -= targetToken.swapTokensForExactTokens(amount, gasZRC20, gasFee);
