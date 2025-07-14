@@ -3,9 +3,10 @@ pragma solidity ^0.8.26;
 
 import {AaveVault} from "../src/AaveVault.sol";
 import {ProxyBase} from "../src/ProxyBase.sol";
+
+import "./Constants.sol";
 import {IPool} from "@aave/contracts/interfaces/IPool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IGatewayEVM} from "@zetachain/contracts/evm/interfaces/IGatewayEVM.sol";
 import {Script, console} from "forge-std/Script.sol";
 
 contract DeployAaveVaultScript is Script {
@@ -15,9 +16,11 @@ contract DeployAaveVaultScript is Script {
     address constant implTestnet = 0x3695E1C3e362D86CCA3520Abc335eFfe58F33423;
     address constant implBase = 0x862f46d57B3aa0FD3592D2DbA8Ea1cA4A11e846E;
     address constant implPolygon = 0x8bcd92E87B3f67457C80F085379Ef7fC65d3bCcD;
+    address constant implBnb = 0xF441cd47327af1A70A067Ff7f5cAd122bA1B7376;
     address constant proxyTestnet = 0x2DEEdcE96f1B40301B7CA1F8877286f73dE87CF3;
     address constant proxyBase = 0xD4F3Ba2Fe4183c32A498Ad1ecF9Fc55308FcC029;
     address constant proxyPolygon = 0x1c60d7075b19C8107dEe803272c9d085A0eDf775;
+    address constant proxyBnb = 0xCB513DB80C6C76593770Fc4a1827d5Ab8186b0cD;
 
     struct AaveVaultConstructorArgs {
         IPool pool;
@@ -42,8 +45,8 @@ contract DeployAaveVaultScript is Script {
         pool: IPool(0xA238Dd80C259a72e81d7e4664a9801593F98d1c5),
         token: IERC20(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913),
         asset: IERC20(0x4e65fE4DbA92790696d040ac24Aa414708F5c0AB),
-        gateway: IGatewayEVM(0x48B9AACC350b20147001f88821d31731Ba4C30ed),
-        yieldMil: 0xE65eEe518A897618cBEe25898f80200E7988c81e, // proxy
+        gateway: gateway,
+        yieldMil: yieldMil, // proxy
         evmEntry: 0xCB513DB80C6C76593770Fc4a1827d5Ab8186b0cD // proxy
     });
 
@@ -51,9 +54,18 @@ contract DeployAaveVaultScript is Script {
         pool: IPool(0x794a61358D6845594F94dc1DB02A252b5b4814aD),
         token: IERC20(0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359),
         asset: IERC20(0xA4D94019934D8333Ef880ABFFbF2FDd611C762BD),
-        gateway: IGatewayEVM(0x48B9AACC350b20147001f88821d31731Ba4C30ed),
-        yieldMil: 0xE65eEe518A897618cBEe25898f80200E7988c81e, // proxy
+        gateway: gateway,
+        yieldMil: yieldMil, // proxy
         evmEntry: 0x1547e8603048137deFf6Fc029C1778E2889A0F83 // proxy
+    });
+
+    AaveVaultConstructorArgs bnbArgs = AaveVaultConstructorArgs({
+        pool: IPool(0x6807dc923806fE8Fd134338EABCA509979a7e0cB),
+        token: IERC20(0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d),
+        asset: IERC20(0x00901a076785e0906d1028c7d6372d247bec7d61),
+        gateway: gateway,
+        yieldMil: yieldMil, // proxy
+        evmEntry: 0x33CB07CA2D83298dc4ee9Efa5b0c421632b15B11 // proxy
     });
 
     // deploy AaveVault implementation
@@ -66,6 +78,8 @@ contract DeployAaveVaultScript is Script {
             args = polygonArgs;
         } else if (chainId == 421614) {
             args = testnetArgs;
+        } else if (chainId == 56) {
+            args = bnbArgs;
         } else {
             revert("Unsupported network");
         }
@@ -74,19 +88,19 @@ contract DeployAaveVaultScript is Script {
     } */
 
     // change implementation
-    function run() public {
+    /* function run() public {
         vm.startBroadcast();
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
         vm.stopBroadcast();
-    }
+    } */
 
     // deploy proxy
-    /* function run() public {
+    function run() public {
         vm.startBroadcast();
-        bytes memory data = abi.encodeCall(AaveVault.initialize, (admin, 200, 5234567));
+        bytes memory data = abi.encodeCall(AaveVault.initialize, (admin, 200, 2123450458536208768));
         new ProxyBase(_getImpl(), admin, data);
         vm.stopBroadcast();
-    } */
+    }
 
     // get an address at nonce + 1
     /* function run() public {
@@ -102,6 +116,8 @@ contract DeployAaveVaultScript is Script {
             return implPolygon;
         } else if (chainId == 421614) {
             return implTestnet;
+        } else if (chainId == 56) {
+            return implBnb;
         } else {
             revert("Unsupported network");
         }
@@ -114,6 +130,8 @@ contract DeployAaveVaultScript is Script {
             return proxyPolygon;
         } else if (chainId == 421614) {
             return proxyTestnet;
+        } else if (chainId == 56) {
+            return proxyBnb;
         } else {
             revert("Unsupported network");
         }

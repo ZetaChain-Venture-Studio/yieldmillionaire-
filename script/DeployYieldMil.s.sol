@@ -12,7 +12,7 @@ contract DeployYieldMilScript is Script {
     address immutable admin =
         chainId == 7001 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
     address constant implTestnet = 0x599fA4C6952ef77d959DD7007b2C2e9183edAe3F;
-    address constant implMainnet = 0xE3990A03c66F88ddA3970eFdb2146e1D15d95a1e;
+    address constant implMainnet = 0x3AD12d19cD324631A0A72cdc079c5041DEF3e9ab;
     address constant proxyTestnet = 0x3a1E99a396607B822a68B194eE856d05fc38d848;
     address constant proxyMainnet = 0xE65eEe518A897618cBEe25898f80200E7988c81e;
 
@@ -22,6 +22,8 @@ contract DeployYieldMilScript is Script {
         address ethBase;
         address usdcPolygon;
         address polPolygon;
+        address usdcBnb;
+        address bnbBnb;
     }
 
     YieldMilConstructorArgs testnetArgs = YieldMilConstructorArgs({
@@ -29,7 +31,9 @@ contract DeployYieldMilScript is Script {
         usdcBase: 0x4bC32034caCcc9B7e02536945eDbC286bACbA073, // arbitrum
         ethBase: 0x1de70f3e971B62A0707dA18100392af14f7fB677, // arbitrum
         usdcPolygon: 0x4bC32034caCcc9B7e02536945eDbC286bACbA073,
-        polPolygon: 0x1de70f3e971B62A0707dA18100392af14f7fB677
+        polPolygon: 0x1de70f3e971B62A0707dA18100392af14f7fB677,
+        usdcBnb: 0x4bC32034caCcc9B7e02536945eDbC286bACbA073,
+        bnbBnb: 0x1de70f3e971B62A0707dA18100392af14f7fB677
     });
 
     YieldMilConstructorArgs mainnetArgs = YieldMilConstructorArgs({
@@ -37,7 +41,9 @@ contract DeployYieldMilScript is Script {
         usdcBase: 0x96152E6180E085FA57c7708e18AF8F05e37B479D,
         ethBase: 0x1de70f3e971B62A0707dA18100392af14f7fB677,
         usdcPolygon: 0xfC9201f4116aE6b054722E10b98D904829b469c3,
-        polPolygon: 0xADF73ebA3Ebaa7254E859549A44c74eF7cff7501
+        polPolygon: 0xADF73ebA3Ebaa7254E859549A44c74eF7cff7501,
+        usdcBnb: 0x05BA149A7bd6dC1F937fA9046A9e05C05f3b18b0,
+        bnbBnb: 0x48f80608B672DC30DC7e3dbBd0343c5F02C738Eb
     });
 
     // deploy yieldMil implementation
@@ -51,14 +57,24 @@ contract DeployYieldMilScript is Script {
         } else {
             revert("Unsupported network");
         }
-        new YieldMil(args.gateway, args.usdcBase, args.ethBase, args.usdcPolygon, args.polPolygon);
+        new YieldMil(args.gateway, args.usdcBase, args.ethBase, args.usdcPolygon, args.polPolygon, args.usdcBnb, args.bnbBnb);
         vm.stopBroadcast();
     } */
 
     // change implementation
-    function run() public {
+    /* function run() public {
         vm.startBroadcast();
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
+        vm.stopBroadcast();
+    } */
+
+    // change implementation and reinitialize
+    function run() public {
+        vm.startBroadcast();
+        IYieldMil.ReInitContext memory reInitContext = _getReInitContext();
+        reInitContext.version = 2;
+        bytes memory data = abi.encodeCall(YieldMil.reinitialize, reInitContext);
+        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), data);
         vm.stopBroadcast();
     }
 
@@ -155,6 +171,36 @@ contract DeployYieldMilScript is Script {
             EVMEntryChains = chains;
             EVMEntries = new address[](1);
             EVMEntries[0] = address(0);
+        } else {
+            revert("Unsupported network");
+        }
+    }
+
+    function _getReInitContext() internal view returns (IYieldMil.ReInitContext memory reInitContext) {
+        if (chainId == 7000) {
+            reInitContext.chains = new uint256[](1);
+            reInitContext.chains[0] = 56;
+            reInitContext.protocols = new Protocol[](1);
+            reInitContext.protocols[0] = Protocol.Aave;
+            reInitContext.tokens = new address[](1);
+            reInitContext.tokens[0] = mainnetArgs.usdcBnb;
+            reInitContext.vaults = new address[](1);
+            reInitContext.vaults[0] = 0xCB513DB80C6C76593770Fc4a1827d5Ab8186b0cD;
+            reInitContext.EVMEntryChains = reInitContext.chains;
+            reInitContext.EVMEntries = new address[](1);
+            reInitContext.EVMEntries[0] = 0x33CB07CA2D83298dc4ee9Efa5b0c421632b15B11;
+        } else if (chainId == 7001) {
+            reInitContext.chains = new uint256[](1);
+            reInitContext.chains[0] = 97;
+            reInitContext.protocols = new Protocol[](1);
+            reInitContext.protocols[0] = Protocol.Aave;
+            reInitContext.tokens = new address[](1);
+            reInitContext.tokens[0] = testnetArgs.usdcBnb;
+            reInitContext.vaults = new address[](1);
+            reInitContext.vaults[0] = address(0);
+            reInitContext.EVMEntryChains = reInitContext.chains;
+            reInitContext.EVMEntries = new address[](1);
+            reInitContext.EVMEntries[0] = address(0);
         } else {
             revert("Unsupported network");
         }
