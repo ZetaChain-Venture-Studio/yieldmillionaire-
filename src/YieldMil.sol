@@ -22,13 +22,15 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     using SwapHelperLib for address;
 
     /// @inheritdoc IYieldMil
-    string public constant VERSION = "1.1.0";
+    string public constant VERSION = "1.2.0";
     /// @inheritdoc IYieldMil
     IWETH9 public constant WZETA = IWETH9(0x5F0b1a82749cb4E2278EC87F8BF6B618dC71a8bf);
     /// @inheritdoc IYieldMil
     uint256 public constant BASE_CHAIN_ID = 8453;
     /// @inheritdoc IYieldMil
     uint256 public constant POLYGON_CHAIN_ID = 137;
+    /// @inheritdoc IYieldMil
+    uint256 public constant BNB_CHAIN_ID = 56;
     /// @inheritdoc IYieldMil
     IGatewayZEVM public immutable GATEWAY;
     /// @inheritdoc IYieldMil
@@ -39,6 +41,10 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     address public immutable USDC_POLYGON;
     /// @inheritdoc IYieldMil
     address public immutable POL_POLYGON;
+    /// @inheritdoc IYieldMil
+    address public immutable USDC_BNB;
+    /// @inheritdoc IYieldMil
+    address public immutable BNB_BNB;
 
     modifier onlyGateway() {
         if (msg.sender != address(GATEWAY)) revert NotGateway();
@@ -55,23 +61,33 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
         _;
     }
 
-    constructor(IGatewayZEVM _gateway, address _usdcBase, address _ethBase, address _usdcPolygon, address _polPolygon)
-        payable
-    {
+    constructor(
+        IGatewayZEVM _gateway,
+        address _usdcBase,
+        address _ethBase,
+        address _usdcPolygon,
+        address _polPolygon,
+        address _usdcBnb,
+        address _bnbBnb
+    ) payable {
         _disableInitializers();
         if (
             address(_gateway) == address(0) || _usdcBase == address(0) || _ethBase == address(0)
-                || _usdcPolygon == address(0) || _polPolygon == address(0)
+                || _usdcPolygon == address(0) || _polPolygon == address(0) || _usdcBnb == address(0)
+                || _bnbBnb == address(0)
         ) revert ZeroAddress();
         GATEWAY = _gateway;
         USDC_BASE = _usdcBase;
         ETH_BASE = _ethBase;
         USDC_POLYGON = _usdcPolygon;
         POL_POLYGON = _polPolygon;
+        USDC_BNB = _usdcBnb;
+        BNB_BNB = _bnbBnb;
     }
 
     /**
      * Initializes the YieldMil.
+     * @dev First time initialization.
      * @param initContext - The initialization context.
      */
     function initialize(InitContext calldata initContext) external payable initializer notZero(initContext.owner) {
@@ -79,34 +95,28 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
         s.owner = initContext.owner;
         emit OwnerUpdated(initContext.owner);
 
-        uint256 len = initContext.chains.length;
-        if (len != initContext.protocols.length || len != initContext.vaults.length || len != initContext.tokens.length)
-        {
-            revert InvalidInitialization();
-        }
-        for (uint256 i; i < len; ++i) {
-            if (initContext.tokens[i] != _getUSDC(initContext.chains[i])) revert NotUSDC();
-            if (initContext.vaults[i] == address(0)) revert ZeroAddress();
-            s.vaults[_getKey(initContext.chains[i], initContext.protocols[i], initContext.tokens[i])] =
-                initContext.vaults[i];
-            emit VaultUpdated(
-                initContext.chains[i], initContext.protocols[i], initContext.tokens[i], initContext.vaults[i]
-            );
-        }
-
-        len = initContext.EVMEntryChains.length;
-        if (len != initContext.EVMEntries.length) revert InvalidInitialization();
-        for (uint256 i; i < len; ++i) {
-            if (initContext.EVMEntries[i] == address(0)) revert ZeroAddress();
-            s.EVMEntries[initContext.EVMEntryChains[i]] = initContext.EVMEntries[i];
-            emit EVMEntryUpdated(initContext.EVMEntryChains[i], initContext.EVMEntries[i]);
-        }
+        _initVaults(initContext.chains, initContext.protocols, initContext.vaults, initContext.tokens);
+        _initEVMEntries(initContext.EVMEntryChains, initContext.EVMEntries);
 
         // Approve tokens for the gateway
-        IZRC20(USDC_BASE).approve(address(GATEWAY), type(uint256).max);
-        IZRC20(ETH_BASE).approve(address(GATEWAY), type(uint256).max);
-        IZRC20(USDC_POLYGON).approve(address(GATEWAY), type(uint256).max);
-        IZRC20(POL_POLYGON).approve(address(GATEWAY), type(uint256).max);
+        _approvals(initContext.EVMEntryChains);
+    }
+
+    /**
+     * Reinitializes the YieldMil for new versions.
+     * @param reInitContext - The reinitialization context.
+     */
+    function reinitialize(ReInitContext calldata reInitContext)
+        external
+        payable
+        onlyOwner
+        reinitializer(reInitContext.version)
+    {
+        _initVaults(reInitContext.chains, reInitContext.protocols, reInitContext.vaults, reInitContext.tokens);
+        _initEVMEntries(reInitContext.EVMEntryChains, reInitContext.EVMEntries);
+
+        // Approve tokens for the gateway
+        _approvals(reInitContext.EVMEntryChains);
     }
 
     /// @inheritdoc UniversalContract
@@ -398,6 +408,62 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     }
 
     /**
+     * Initializes the vaults.
+     * @param _chains - The chains.
+     * @param _protocols - The protocols.
+     * @param _vaults - The vault addresses.
+     * @param _tokens - The token addresses.
+     */
+    function _initVaults(
+        uint256[] calldata _chains,
+        Protocol[] calldata _protocols,
+        address[] calldata _vaults,
+        address[] calldata _tokens
+    ) internal {
+        uint256 len = _chains.length;
+        if (len != _protocols.length || len != _vaults.length || len != _tokens.length) {
+            revert InvalidInitialization();
+        }
+        Storage storage s = _getStorage();
+        for (uint256 i; i < len; ++i) {
+            if (_tokens[i] != _getUSDC(_chains[i])) revert NotUSDC();
+            if (_vaults[i] == address(0)) revert ZeroAddress();
+            s.vaults[_getKey(_chains[i], _protocols[i], _tokens[i])] = _vaults[i];
+            emit VaultUpdated(_chains[i], _protocols[i], _tokens[i], _vaults[i]);
+        }
+    }
+
+    /**
+     * Initializes the EVMEntries.
+     * @param _chains - The chains.
+     * @param _EVMEntries - The EVMEntry addresses.
+     */
+    function _initEVMEntries(uint256[] calldata _chains, address[] calldata _EVMEntries) internal {
+        uint256 len = _chains.length;
+        if (len != _EVMEntries.length) revert InvalidInitialization();
+        Storage storage s = _getStorage();
+        for (uint256 i; i < len; ++i) {
+            if (_EVMEntries[i] == address(0)) revert ZeroAddress();
+            s.EVMEntries[_chains[i]] = _EVMEntries[i];
+            emit EVMEntryUpdated(_chains[i], _EVMEntries[i]);
+        }
+    }
+
+    /**
+     * Approves the gateway for the USDC and native tokens for the given chains.
+     * @param _chains - The chains.
+     */
+    function _approvals(uint256[] calldata _chains) internal {
+        uint256 len = _chains.length;
+        uint256 chain;
+        for (uint256 i; i < len; ++i) {
+            chain = _chains[i];
+            IZRC20(_getUSDC(chain)).approve(address(GATEWAY), type(uint256).max);
+            IZRC20(_getNative(chain)).approve(address(GATEWAY), type(uint256).max);
+        }
+    }
+
+    /**
      * Returns the USDC address for the given chain.
      * @param _chain - The chain.
      * @return The USDC address.
@@ -407,6 +473,8 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             return USDC_BASE;
         } else if (_chain == POLYGON_CHAIN_ID) {
             return USDC_POLYGON;
+        } else if (_chain == BNB_CHAIN_ID) {
+            return USDC_BNB;
         } else {
             revert InvalidChain();
         }
@@ -420,9 +488,10 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     function _getNative(uint256 _chain) internal view returns (address) {
         if (_chain == BASE_CHAIN_ID) {
             return ETH_BASE;
-        }
-        if (_chain == POLYGON_CHAIN_ID) {
+        } else if (_chain == POLYGON_CHAIN_ID) {
             return POL_POLYGON;
+        } else if (_chain == BNB_CHAIN_ID) {
+            return BNB_BNB;
         } else {
             revert InvalidChain();
         }

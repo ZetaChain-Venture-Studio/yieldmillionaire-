@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import {EVMEntry} from "../src/EVMEntry.sol";
 import {ProxyBase} from "../src/ProxyBase.sol";
 import "../src/utils/Types.sol";
-import {IGatewayEVM} from "@zetachain/contracts/evm/interfaces/IGatewayEVM.sol";
+import "./Constants.sol";
 import {Script, console} from "forge-std/Script.sol";
 
 contract DeployEVMEntryScript is Script {
@@ -14,9 +14,11 @@ contract DeployEVMEntryScript is Script {
     address constant implTestnet = 0x2CeFaFcA1eBba884718cB512B9C5D18061f2152A;
     address constant implBase = 0x2fFA55eB059728d43628BF98d373F0A2843D7f7A;
     address constant implPolygon = 0xC724D3E76B501B97B93DA8cb964EA380621586F0;
+    address constant implBnb = 0xD4F3Ba2Fe4183c32A498Ad1ecF9Fc55308FcC029;
     address constant proxyTestnet = 0x5789500c258fB5cd222fF83f07576E4DF3B5401e;
     address constant proxyBase = 0xCB513DB80C6C76593770Fc4a1827d5Ab8186b0cD;
     address constant proxyPolygon = 0x1547e8603048137deFf6Fc029C1778E2889A0F83;
+    address constant proxyBnb = 0x33CB07CA2D83298dc4ee9Efa5b0c421632b15B11;
 
     struct EVMEntryConstructorArgs {
         IGatewayEVM gateway;
@@ -32,15 +34,21 @@ contract DeployEVMEntryScript is Script {
     });
 
     EVMEntryConstructorArgs baseArgs = EVMEntryConstructorArgs({
-        gateway: IGatewayEVM(0x48B9AACC350b20147001f88821d31731Ba4C30ed),
-        yieldMil: 0xE65eEe518A897618cBEe25898f80200E7988c81e, // proxy
+        gateway: gateway,
+        yieldMil: yieldMil, // proxy
         usdc: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
     });
 
     EVMEntryConstructorArgs polygonArgs = EVMEntryConstructorArgs({
-        gateway: IGatewayEVM(0x48B9AACC350b20147001f88821d31731Ba4C30ed),
-        yieldMil: 0xE65eEe518A897618cBEe25898f80200E7988c81e, // proxy
+        gateway: gateway,
+        yieldMil: yieldMil, // proxy
         usdc: 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359
+    });
+
+    EVMEntryConstructorArgs bnbArgs = EVMEntryConstructorArgs({
+        gateway: gateway,
+        yieldMil: yieldMil, // proxy
+        usdc: 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d
     });
 
     // deploy EVMEntry implementation
@@ -53,6 +61,8 @@ contract DeployEVMEntryScript is Script {
             args = polygonArgs;
         } else if (chainId == 421614) {
             args = testnetArgs;
+        } else if (chainId == 56) {
+            args = bnbArgs;
         } else {
             revert("Unsupported network");
         }
@@ -61,20 +71,27 @@ contract DeployEVMEntryScript is Script {
     } */
 
     // change implementation
-    function run() public {
+    /* function run() public {
         vm.startBroadcast();
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
         vm.stopBroadcast();
-    }
+    } */
 
-    // deploy proxy
+    // deploy proxy without initialization
     /* function run() public {
+        vm.startBroadcast();
+        new ProxyBase(_getImpl(), admin, "");
+        vm.stopBroadcast();
+    } */
+
+    // initialize proxy
+    function run() public {
         vm.startBroadcast();
         (Protocol[] memory protocols, address[] memory tokens, address[] memory vaults) = _getInitArgs();
         bytes memory data = abi.encodeCall(EVMEntry.initialize, (admin, protocols, tokens, vaults));
-        new ProxyBase(_getImpl(), admin, data);
+        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), data);
         vm.stopBroadcast();
-    } */
+    }
 
     function _getImpl() internal view returns (address) {
         if (chainId == 8453) {
@@ -83,6 +100,8 @@ contract DeployEVMEntryScript is Script {
             return implPolygon;
         } else if (chainId == 421614) {
             return implTestnet;
+        } else if (chainId == 56) {
+            return implBnb;
         } else {
             revert("Unsupported network");
         }
@@ -95,6 +114,8 @@ contract DeployEVMEntryScript is Script {
             return proxyPolygon;
         } else if (chainId == 421614) {
             return proxyTestnet;
+        } else if (chainId == 56) {
+            return proxyBnb;
         } else {
             revert("Unsupported network");
         }
@@ -119,6 +140,11 @@ contract DeployEVMEntryScript is Script {
         } else if (chainId == 421614) {
             tokens[0] = testnetArgs.usdc;
             vaults[0] = 0x2DEEdcE96f1B40301B7CA1F8877286f73dE87CF3;
+        } else if (chainId == 56) {
+            tokens[0] = bnbArgs.usdc;
+            vaults[0] = 0xCB513DB80C6C76593770Fc4a1827d5Ab8186b0cD;
+        } else {
+            revert("Unsupported network");
         }
     }
 }
