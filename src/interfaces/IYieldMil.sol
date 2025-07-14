@@ -32,6 +32,26 @@ interface IYieldMil {
         uint256[] EVMEntryChains;
         address[] EVMEntries;
     }
+    /**
+     * A struct to store the context of the reinitialization call.
+     * @param version - The version of the reinitialization call.
+     * @param chains - The supported chains.
+     * @param protocols - The supported protocols.
+     * @param tokens - The supported tokens.
+     * @param vaults - The deployed vaults on each chain.
+     * @param EVMEntryChains - The supported EVMEntry chains.
+     * @param EVMEntries - The deployed EVMEntries on each chain.
+     */
+
+    struct ReInitContext {
+        uint64 version;
+        uint256[] chains;
+        Protocol[] protocols;
+        address[] tokens;
+        address[] vaults;
+        uint256[] EVMEntryChains;
+        address[] EVMEntries;
+    }
 
     /**
      * Emitted when tokens are deposited.
@@ -151,6 +171,10 @@ interface IYieldMil {
      */
     function POLYGON_CHAIN_ID() external view returns (uint256);
     /**
+     * Returns BNB chain id
+     */
+    function BNB_CHAIN_ID() external view returns (uint256);
+    /**
      * Returns the GATEWAY contract address
      */
     function GATEWAY() external view returns (IGatewayZEVM);
@@ -170,6 +194,14 @@ interface IYieldMil {
      * Returns the POL_POLYGON contract address
      */
     function POL_POLYGON() external view returns (address);
+    /**
+     * Returns the USDC_BNB contract address
+     */
+    function USDC_BNB() external view returns (address);
+    /**
+     * Returns the BNB_BNB contract address
+     */
+    function BNB_BNB() external view returns (address);
 
     /**
      * Deposits tokens into the contract.
