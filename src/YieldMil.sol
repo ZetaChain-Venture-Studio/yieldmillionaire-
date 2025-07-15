@@ -157,8 +157,8 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
                 callContext.token = targetToken;
                 // TODO: fix slippage
                 amount = zrc20.swapExactTokensForTokens(amount, targetToken, 1);
-                (address gasZRC20, uint256 gasFee) = IZRC20(targetToken).withdrawGasFeeWithGasLimit(70_000);
-                callContext.gasLimit = 70_000;
+                (address gasZRC20, uint256 gasFee) = IZRC20(targetToken).withdrawGasFeeWithGasLimit(100_000);
+                callContext.gasLimit = 100_000;
                 amount -= targetToken.swapTokensForExactTokens(amount, gasZRC20, gasFee);
                 callContext.amount = amount;
                 RevertOptions memory revertOptions = RevertOptions({
