@@ -29,9 +29,8 @@ contract YieldMilStorage {
      * Returns the storage of the YieldMil.
      */
     function _getStorage() internal pure returns (Storage storage $) {
-        bytes32 slot = YIELDMIL_STORAGE_SLOT;
         assembly {
-            $.slot := slot
+            $.slot := YIELDMIL_STORAGE_SLOT
         }
     }
 }
