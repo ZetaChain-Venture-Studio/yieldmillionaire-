@@ -123,16 +123,17 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
             IVault(vault).withdraw(message);
         } else {
             bytes memory message = bytes.concat(hex"02", abi.encode(msg.sender, context));
-            RevertOptions memory revertOptions = RevertOptions({
-                revertAddress: address(this),
-                callOnRevert: true,
-                abortAddress: YIELDMIL,
-                revertMessage: bytes.concat(hex"02", abi.encode(msg.sender)),
-                onRevertGasLimit: 250_000
-            });
+            RevertOptions memory revertOptions;
             if (msg.value == 0) {
                 GATEWAY.call(YIELDMIL, message, revertOptions);
             } else {
+                revertOptions = RevertOptions({
+                    revertAddress: address(this),
+                    callOnRevert: true,
+                    abortAddress: YIELDMIL,
+                    revertMessage: bytes.concat(hex"02", abi.encode(msg.sender)),
+                    onRevertGasLimit: 250_000
+                });
                 GATEWAY.depositAndCall{value: msg.value}(YIELDMIL, message, revertOptions);
             }
         }
