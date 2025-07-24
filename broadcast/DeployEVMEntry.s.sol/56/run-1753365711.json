@@ -1,0 +1,35 @@
+{
+  "transactions": [
+    {
+      "hash": "0x9676665fa3f5397bef79b221ff75cd79b84507ce012126af8ea1db7d04bfacf1",
+      "transactionType": "CALL",
+      "contractName": "ProxyBase",
+      "contractAddress": "0x33cb07ca2d83298dc4ee9efa5b0c421632b15b11",
+      "function": "changeImplementation(address,bytes)",
+      "arguments": [
+        "0x266caFFc7e2692daAA4bf8928020Cdb5F66de13f",
+        "0x"
+      ],
+      "transaction": {
+        "from": "0xabd10f0a61270d6977c5bfd9d4ec74d6d3bc96ab",
+        "to": "0x33cb07ca2d83298dc4ee9efa5b0c421632b15b11",
+        "gas": "0xb69d",
+        "value": "0x0",
+        "input": "0x31124171000000000000000000000000266caffc7e2692daaa4bf8928020cdb5f66de13f00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000",
+        "nonce": "0x1a",
+        "chainId": "0x38"
+      },
+      "additionalContracts": [],
+      "isFixedGasLimit": false
+    }
+  ],
+  "receipts": [],
+  "libraries": [],
+  "pending": [
+    "0x9676665fa3f5397bef79b221ff75cd79b84507ce012126af8ea1db7d04bfacf1"
+  ],
+  "returns": {},
+  "timestamp": 1753365711,
+  "chain": 56,
+  "commit": "2e27aba"
+}

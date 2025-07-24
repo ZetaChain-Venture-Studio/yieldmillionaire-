@@ -12,7 +12,7 @@ contract DeployYieldMilScript is Script {
     address immutable admin =
         chainId == 7001 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
     address constant implTestnet = 0x599fA4C6952ef77d959DD7007b2C2e9183edAe3F;
-    address constant implMainnet = 0x3E2f2df43Ab87781F5656ffe2E0E06fF0c8e7843;
+    address constant implMainnet = 0x20378cdb68e91C7A35a207a5bC5cF9e4f1d942f4;
     address constant proxyTestnet = 0x3a1E99a396607B822a68B194eE856d05fc38d848;
     address constant proxyMainnet = 0xE65eEe518A897618cBEe25898f80200E7988c81e;
 

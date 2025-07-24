@@ -22,7 +22,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     using SwapHelperLib for address;
 
     /// @inheritdoc IYieldMil
-    string public constant VERSION = "1.2.0";
+    string public constant VERSION = "1.3.0";
     /// @inheritdoc IYieldMil
     IWETH9 public constant WZETA = IWETH9(0x5F0b1a82749cb4E2278EC87F8BF6B618dC71a8bf);
     /// @inheritdoc IYieldMil
@@ -120,6 +120,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     }
 
     /// @inheritdoc UniversalContract
+    /// @dev Can only be called by an EVMEntry
     function onCall(MessageContext calldata context, address zrc20, uint256 amount, bytes calldata message)
         external
         onlyGateway
@@ -159,7 +160,10 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
                 amount = zrc20.swapExactTokensForTokens(amount, targetToken, 1);
                 (address gasZRC20, uint256 gasFee) = IZRC20(targetToken).withdrawGasFeeWithGasLimit(100_000);
                 callContext.gasLimit = 100_000;
-                amount -= targetToken.swapTokensForExactTokens(amount, gasZRC20, gasFee);
+                // If the contract doesn't have enough tokens, swap for it
+                if (IZRC20(gasZRC20).balanceOf(address(this)) < gasFee) {
+                    amount -= targetToken.swapTokensForExactTokens(amount, gasZRC20, gasFee);
+                }
                 callContext.amount = amount;
                 RevertOptions memory revertOptions = RevertOptions({
                     revertAddress: address(this),
@@ -190,9 +194,11 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
         if (context.token != _getUSDC(context.targetChain)) revert NotUSDC();
 
         uint256 amount = msg.value;
-        if (amount == 0) revert ZeroAmount();
+        // if amount is zero, sponsor the withdrawal
+        if (amount != 0) {
+            WZETA.deposit{value: amount}();
+        }
 
-        WZETA.deposit{value: amount}();
         amount = _withdraw(msg.sender, context, address(WZETA), amount, block.chainid);
 
         // Return excess funds
@@ -342,7 +348,10 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
         // Get the gas fee for the transfer
         (address gasZRC20, uint256 gasFee) = IZRC20(token).withdrawGasFeeWithGasLimit(context.gasLimit);
         uint256 amount = context.amount;
-        amount -= token.swapTokensForExactTokens(amount, gasZRC20, gasFee);
+        // If the contract doesn't have enough tokens, swap for it
+        if (IZRC20(gasZRC20).balanceOf(address(this)) < gasFee) {
+            amount -= token.swapTokensForExactTokens(amount, gasZRC20, gasFee);
+        }
 
         bytes memory message = bytes.concat(hex"01", abi.encode(sender, context.to, amount, chainId));
         CallOptions memory callOptions = CallOptions({gasLimit: context.gasLimit, isArbitraryCall: false});
@@ -377,7 +386,10 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
         // Get the gas fee for the call
         address gasZRC20 = _getNative(context.targetChain);
         (, uint256 gasFee) = IZRC20(gasZRC20).withdrawGasFeeWithGasLimit(context.gasLimit);
-        amount -= tokenForFee.swapTokensForExactTokens(amount, gasZRC20, gasFee);
+        // If the contract doesn't have enough tokens, swap for it
+        if (IZRC20(gasZRC20).balanceOf(address(this)) < gasFee) {
+            amount -= tokenForFee.swapTokensForExactTokens(amount, gasZRC20, gasFee);
+        }
 
         bytes memory message =
             bytes.concat(hex"02", abi.encode(sender, context.to, context.amount, context.destinationChain));
