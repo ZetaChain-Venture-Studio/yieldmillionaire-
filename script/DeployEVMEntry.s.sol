@@ -12,9 +12,9 @@ contract DeployEVMEntryScript is Script {
     address immutable admin =
         chainId == 421614 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
     address constant implTestnet = 0x2CeFaFcA1eBba884718cB512B9C5D18061f2152A;
-    address constant implBase = 0xE65eEe518A897618cBEe25898f80200E7988c81e;
-    address constant implPolygon = 0xA318b008a289E4D56a23B064ac4Ad95A57217a8e;
-    address constant implBnb = 0x266caFFc7e2692daAA4bf8928020Cdb5F66de13f;
+    address constant implBase = 0xaf5F8E58e6a26cEF6fE6EBBA562fc4d210d72BbD;
+    address constant implPolygon = 0x7509c6091F586258E6FE0EC95be9096Ad578bF75;
+    address constant implBnb = 0xA939a79cC67298fb014C164d621E44e4b5A312f5;
     address constant proxyTestnet = 0x5789500c258fB5cd222fF83f07576E4DF3B5401e;
     address constant proxyBase = 0xCB513DB80C6C76593770Fc4a1827d5Ab8186b0cD;
     address constant proxyPolygon = 0x1547e8603048137deFf6Fc029C1778E2889A0F83;
