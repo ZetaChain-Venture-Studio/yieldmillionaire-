@@ -12,9 +12,9 @@ contract DeployEVMEntryScript is Script {
     address immutable admin =
         chainId == 421614 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
     address constant implTestnet = 0x2CeFaFcA1eBba884718cB512B9C5D18061f2152A;
-    address constant implBase = 0x2fFA55eB059728d43628BF98d373F0A2843D7f7A;
-    address constant implPolygon = 0xC724D3E76B501B97B93DA8cb964EA380621586F0;
-    address constant implBnb = 0xD4F3Ba2Fe4183c32A498Ad1ecF9Fc55308FcC029;
+    address constant implBase = 0xE65eEe518A897618cBEe25898f80200E7988c81e;
+    address constant implPolygon = 0xA318b008a289E4D56a23B064ac4Ad95A57217a8e;
+    address constant implBnb = 0x266caFFc7e2692daAA4bf8928020Cdb5F66de13f;
     address constant proxyTestnet = 0x5789500c258fB5cd222fF83f07576E4DF3B5401e;
     address constant proxyBase = 0xCB513DB80C6C76593770Fc4a1827d5Ab8186b0cD;
     address constant proxyPolygon = 0x1547e8603048137deFf6Fc029C1778E2889A0F83;
@@ -71,11 +71,11 @@ contract DeployEVMEntryScript is Script {
     } */
 
     // change implementation
-    /* function run() public {
+    function run() public {
         vm.startBroadcast();
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
         vm.stopBroadcast();
-    } */
+    }
 
     // deploy proxy without initialization
     /* function run() public {
@@ -85,13 +85,13 @@ contract DeployEVMEntryScript is Script {
     } */
 
     // initialize proxy
-    function run() public {
+    /* function run() public {
         vm.startBroadcast();
         (Protocol[] memory protocols, address[] memory tokens, address[] memory vaults) = _getInitArgs();
         bytes memory data = abi.encodeCall(EVMEntry.initialize, (admin, protocols, tokens, vaults));
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), data);
         vm.stopBroadcast();
-    }
+    } */
 
     function _getImpl() internal view returns (address) {
         if (chainId == 8453) {

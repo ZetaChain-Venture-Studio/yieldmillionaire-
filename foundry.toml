@@ -16,6 +16,7 @@ base = "${BASE_RPC_URL}"
 polygon = "${POLYGON_RPC_URL}"
 zetachain = "${ZETACHAIN_RPC_URL}"
 bnb = "${BNB_RPC_URL}"
+zetachain_testnet = "${ZETACHAIN_TESTNET_RPC_URL}"
 
 [fmt]
 sort_imports = true
