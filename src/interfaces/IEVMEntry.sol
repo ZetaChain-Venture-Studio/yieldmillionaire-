@@ -60,7 +60,6 @@ interface IEVMEntry {
     error NotZeroValue();
     error TransferFailed();
     error ZeroAddress();
-    error ZeroValue();
 
     /**
      * Returns the current version of the contract

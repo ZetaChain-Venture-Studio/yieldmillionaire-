@@ -17,7 +17,7 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
     using SafeERC20 for IERC20;
 
     /// @inheritdoc IEVMEntry
-    string public constant VERSION = "1.1.1";
+    string public constant VERSION = "1.2.0";
     /// @inheritdoc IEVMEntry
     IGatewayEVM public immutable GATEWAY;
     /// @inheritdoc IEVMEntry
@@ -122,7 +122,6 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
             bytes memory message = abi.encode(msg.sender, context.to, context.amount, context.destinationChain);
             IVault(vault).withdraw(message);
         } else {
-            if (msg.value == 0) revert ZeroValue();
             bytes memory message = bytes.concat(hex"02", abi.encode(msg.sender, context));
             RevertOptions memory revertOptions = RevertOptions({
                 revertAddress: address(this),
@@ -131,7 +130,11 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
                 revertMessage: bytes.concat(hex"02", abi.encode(msg.sender)),
                 onRevertGasLimit: 250_000
             });
-            GATEWAY.depositAndCall{value: msg.value}(YIELDMIL, message, revertOptions);
+            if (msg.value == 0) {
+                GATEWAY.call(YIELDMIL, message, revertOptions);
+            } else {
+                GATEWAY.depositAndCall{value: msg.value}(YIELDMIL, message, revertOptions);
+            }
         }
     }
 
