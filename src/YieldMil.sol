@@ -139,6 +139,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             callContext.token = _getUSDC(callContext.targetChain);
             amount = _withdraw(sender, callContext, zrc20, amount, context.chainID);
             if (amount != 0) {
+                // TODO: fix refunds
                 _getStorage().refunds[sender][zrc20] += amount;
                 emit RefundAdded(sender, zrc20, amount);
             }
@@ -211,6 +212,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
 
     /// @inheritdoc IYieldMil
     function withdrawRefunds(address to, address token) external {
+        // TODO: fix refunds
         uint256 amount = _getStorage().refunds[msg.sender][token];
         if (amount == 0) revert ZeroAmount();
         delete _getStorage().refunds[msg.sender][token];
@@ -230,6 +232,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
                 // return tokens to the original sender
                 IERC20(revertContext.asset).safeTransfer(sender, revertContext.amount);
             } else {
+                // TODO: fix refunds
                 _getStorage().refunds[sender][revertContext.asset] += revertContext.amount;
                 emit RefundAdded(sender, revertContext.asset, revertContext.amount);
             }
@@ -261,6 +264,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             } else {
                 revert InvalidAbort();
             }
+            // TODO: fix refunds
             _getStorage().refunds[receiver][abortContext.asset] += amount;
             emit RefundAdded(receiver, abortContext.asset, amount);
         }
@@ -306,6 +310,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
 
     /// @inheritdoc IYieldMil
     function sendRefund(address from, address to, address token) external payable onlyOwner {
+        // TODO: fix refunds
         uint256 amount = _getStorage().refunds[from][token];
         if (amount == 0) revert ZeroAmount();
         delete _getStorage().refunds[from][token];
@@ -330,6 +335,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
 
     /// @inheritdoc IYieldMil
     function getRefunds(address from, address token) external view returns (uint256) {
+        // TODO: fix refunds
         return _getStorage().refunds[from][token];
     }
 
