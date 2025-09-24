@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
+import {RefundVault} from "../RefundVault.sol";
 import "../utils/Types.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IGatewayZEVM} from "@zetachain/contracts/zevm/interfaces/IGatewayZEVM.sol";
@@ -14,43 +15,13 @@ import {IWETH9} from "@zetachain/contracts/zevm/interfaces/IWZETA.sol";
  */
 interface IYieldMil {
     /**
-     * A struct to store the context of the initialization call.
-     * @param owner - The owner of the contract.
-     * @param chains - The supported chains.
-     * @param protocols - The supported protocols.
-     * @param tokens - The supported tokens.
-     * @param vaults - The deployed vaults on each chain.
-     * @param EVMEntryChains - The supported EVMEntry chains.
-     * @param EVMEntries - The deployed EVMEntries on each chain.
-     */
-    struct InitContext {
-        address owner;
-        uint256[] chains;
-        Protocol[] protocols;
-        address[] tokens;
-        address[] vaults;
-        uint256[] EVMEntryChains;
-        address[] EVMEntries;
-    }
-    /**
      * A struct to store the context of the reinitialization call.
      * @param version - The version of the reinitialization call.
      * @param chains - The supported chains.
-     * @param protocols - The supported protocols.
-     * @param tokens - The supported tokens.
-     * @param vaults - The deployed vaults on each chain.
-     * @param EVMEntryChains - The supported EVMEntry chains.
-     * @param EVMEntries - The deployed EVMEntries on each chain.
      */
-
     struct ReInitContext {
         uint64 version;
         uint256[] chains;
-        Protocol[] protocols;
-        address[] tokens;
-        address[] vaults;
-        uint256[] EVMEntryChains;
-        address[] EVMEntries;
     }
 
     /**
@@ -78,6 +49,17 @@ interface IYieldMil {
      */
     event DepositAborted(AbortContext abortContext);
     /**
+     * Emitted when the deposit is paused.
+     * @param guardian - The address of the guardian who paused the deposit.
+     * @param time - The timestamp when the deposit was paused.
+     */
+    event DepositPaused(address indexed guardian, uint256 time);
+    /**
+     * Emitted when the deposit is unpaused.
+     * @param time - The timestamp when the deposit was unpaused.
+     */
+    event DepositUnpaused(uint256 time);
+    /**
      * Emitted when a deposit is reverted.
      * @param revertContext - The revert context.
      */
@@ -95,6 +77,12 @@ interface IYieldMil {
      * @param amount - The amount of funds rescued.
      */
     event FundsRescued(address indexed to, IERC20 indexed token, uint256 amount);
+    /**
+     * Emitted when a guardian is updated.
+     * @param guardian - The address of the guardian.
+     * @param status - The status of the guardian.
+     */
+    event GuardianUpdated(address indexed guardian, bool status);
     /**
      * Emitted when the owner is updated.
      * @param newOwner - The new owner.
@@ -140,17 +128,34 @@ interface IYieldMil {
      * @param revertContext - The revert context.
      */
     event WithdrawReverted(RevertContext revertContext);
+    /**
+     * Emitted when the withdraw is paused.
+     * @param guardian - The address of the guardian who paused the withdraw.
+     * @param time - The timestamp when the withdraw was paused.
+     */
+    event WithdrawPaused(address indexed guardian, uint256 time);
+    /**
+     * Emitted when the withdraw is unpaused.
+     * @param time - The timestamp when the withdraw was unpaused.
+     */
+    event WithdrawUnpaused(uint256 time);
 
+    error DepositIsForbidden();
     error InvalidAbort();
     error InvalidChain();
     error InvalidEVMEntry();
     error InvalidMessage(bytes);
+    error InvalidSender();
+    error InvalidSignature();
     error InvalidVault();
     error InvalidRevert();
     error NotGateway();
+    error NotGuardian();
     error NotOwner();
     error NotUSDC();
+    error SignatureExpired();
     error TransferFailed();
+    error WithdrawIsForbidden();
     error ZeroAddress();
     error ZeroAmount();
 
@@ -178,6 +183,10 @@ interface IYieldMil {
      * Returns the GATEWAY contract address
      */
     function GATEWAY() external view returns (IGatewayZEVM);
+    /**
+     * Returns the REFUND_VAULT contract address
+     */
+    function REFUND_VAULT() external view returns (RefundVault);
     /**
      * Returns the USDC_BASE contract address
      */
@@ -222,12 +231,6 @@ interface IYieldMil {
      */
     function withdraw(CallContext calldata context) external payable;
     /**
-     * Withdraws the refunds that msg.sender has.
-     * @param to - The recipient
-     * @param token - The token address
-     */
-    function withdrawRefunds(address to, address token) external;
-    /**
      * Updates a vault in the contract.
      * @dev Only callable by the owner.
      * @param chain - The chain of the vault.
@@ -259,17 +262,42 @@ interface IYieldMil {
      */
     function rescueFunds(address to, IERC20 token, uint256 amount) external payable;
     /**
-     * Sends a refund.
-     * @dev Only callable by the owner.
-     * @param from - The address to send the refund from.
-     * @param to - The address to send the refund to.
-     * @param token - The token to refund.
+     * Pauses the deposit.
+     * @dev Only the guardian can pause the deposit.
      */
-    function sendRefund(address from, address to, address token) external payable;
+    function pauseDeposit() external;
+    /**
+     * Pauses the withdraw.
+     * @dev Only the guardian can pause the withdraw.
+     */
+    function pauseWithdraw() external;
+    /**
+     * Unpauses the deposit.
+     * @dev Only the owner can unpause the deposit.
+     */
+    function unpauseDeposit() external payable;
+    /**
+     * Unpauses the withdraw.
+     * @dev Only the owner can unpause the withdraw.
+     */
+    function unpauseWithdraw() external payable;
+    /**
+     * Updates guardian's status.
+     * @dev Only the owner can update the guardian's status.
+     * @param guardian - The address of the guardian.
+     * @param status - The status of the guardian.
+     */
+    function updateGuardian(address guardian, bool status) external payable;
+
     /**
      * Returns the owner of the contract.
      */
     function getOwner() external view returns (address);
+    /**
+     * Returns the guardian status.
+     * @param guardian - The address of the guardian.
+     */
+    function isGuardian(address guardian) external view returns (bool);
     /**
      * Gets the vault address for the given parameters.
      * @param chain - The chain of the vault.
@@ -283,10 +311,4 @@ interface IYieldMil {
      * @param chainId - The chain id.
      */
     function getEVMEntry(uint256 chainId) external view returns (address);
-    /**
-     * Gets the refunds for the given parameters.
-     * @param from - The address of the owner of the refunds.
-     * @param token - The token of the refunds.
-     */
-    function getRefunds(address from, address token) external view returns (uint256);
 }

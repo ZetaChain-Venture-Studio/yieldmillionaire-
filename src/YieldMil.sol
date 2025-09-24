@@ -6,6 +6,8 @@ import {SwapHelperLib} from "./utils/SwapHelperLib.sol";
 import "./utils/YieldMilStorage.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {
     Abortable, CallOptions, RevertOptions, Revertable
 } from "@zetachain/contracts/zevm/interfaces/IGatewayZEVM.sol";
@@ -20,9 +22,13 @@ import {MessageContext, UniversalContract} from "@zetachain/contracts/zevm/inter
 contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, Revertable, Initializable {
     using SafeERC20 for IERC20;
     using SwapHelperLib for address;
+    using MessageHashUtils for bytes32;
+    using SignatureChecker for address;
 
+    /// gas savings
+    uint256 internal immutable CHAIN_ID = block.chainid;
     /// @inheritdoc IYieldMil
-    string public constant VERSION = "1.3.0";
+    string public constant VERSION = "1.4.0";
     /// @inheritdoc IYieldMil
     IWETH9 public constant WZETA = IWETH9(0x5F0b1a82749cb4E2278EC87F8BF6B618dC71a8bf);
     /// @inheritdoc IYieldMil
@@ -33,6 +39,8 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     uint256 public constant BNB_CHAIN_ID = 56;
     /// @inheritdoc IYieldMil
     IGatewayZEVM public immutable GATEWAY;
+    /// @inheritdoc IYieldMil
+    RefundVault public immutable REFUND_VAULT;
     /// @inheritdoc IYieldMil
     address public immutable USDC_BASE;
     /// @inheritdoc IYieldMil
@@ -56,6 +64,11 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
         _;
     }
 
+    modifier onlyGuardian() {
+        if (!_getStorage().guardians[msg.sender]) revert NotGuardian();
+        _;
+    }
+
     modifier notZero(address input) {
         if (input == address(0)) revert ZeroAddress();
         _;
@@ -63,6 +76,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
 
     constructor(
         IGatewayZEVM _gateway,
+        RefundVault _refundVault,
         address _usdcBase,
         address _ethBase,
         address _usdcPolygon,
@@ -72,34 +86,18 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     ) payable {
         _disableInitializers();
         if (
-            address(_gateway) == address(0) || _usdcBase == address(0) || _ethBase == address(0)
-                || _usdcPolygon == address(0) || _polPolygon == address(0) || _usdcBnb == address(0)
-                || _bnbBnb == address(0)
+            address(_gateway) == address(0) || address(_refundVault) == address(0) || _usdcBase == address(0)
+                || _ethBase == address(0) || _usdcPolygon == address(0) || _polPolygon == address(0)
+                || _usdcBnb == address(0) || _bnbBnb == address(0)
         ) revert ZeroAddress();
         GATEWAY = _gateway;
+        REFUND_VAULT = _refundVault;
         USDC_BASE = _usdcBase;
         ETH_BASE = _ethBase;
         USDC_POLYGON = _usdcPolygon;
         POL_POLYGON = _polPolygon;
         USDC_BNB = _usdcBnb;
         BNB_BNB = _bnbBnb;
-    }
-
-    /**
-     * Initializes the YieldMil.
-     * @dev First time initialization.
-     * @param initContext - The initialization context.
-     */
-    function initialize(InitContext calldata initContext) external payable initializer notZero(initContext.owner) {
-        Storage storage s = _getStorage();
-        s.owner = initContext.owner;
-        emit OwnerUpdated(initContext.owner);
-
-        _initVaults(initContext.chains, initContext.protocols, initContext.vaults, initContext.tokens);
-        _initEVMEntries(initContext.EVMEntryChains, initContext.EVMEntries);
-
-        // Approve tokens for the gateway
-        _approvals(initContext.EVMEntryChains);
     }
 
     /**
@@ -112,45 +110,48 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
         onlyOwner
         reinitializer(reInitContext.version)
     {
-        _initVaults(reInitContext.chains, reInitContext.protocols, reInitContext.vaults, reInitContext.tokens);
-        _initEVMEntries(reInitContext.EVMEntryChains, reInitContext.EVMEntries);
-
-        // Approve tokens for the gateway
-        _approvals(reInitContext.EVMEntryChains);
+        // remove approvals
+        uint256 len = reInitContext.chains.length;
+        uint256 chain;
+        for (uint256 i; i < len; ++i) {
+            chain = reInitContext.chains[i];
+            IZRC20(_getUSDC(chain)).approve(address(GATEWAY), 0);
+            IZRC20(_getNative(chain)).approve(address(GATEWAY), 0);
+        }
     }
 
     /// @inheritdoc UniversalContract
     /// @dev Can only be called by an EVMEntry
+    /// @dev 01 - deposit, 02 - withdraw, 03 - onCallback from EVMEntry
     function onCall(MessageContext calldata context, address zrc20, uint256 amount, bytes calldata message)
         external
         onlyGateway
     {
         if (_getStorage().EVMEntries[context.chainID] != context.senderEVM) revert InvalidEVMEntry();
         if (message[0] == hex"01") {
-            (address sender, CallContext memory callContext) =
-                abi.decode(message[1:message.length], (address, CallContext));
+            CallContext memory callContext = abi.decode(message[1:message.length], (CallContext));
             callContext.token = _getUSDC(callContext.targetChain);
             // TODO: fix slippage
             callContext.amount = zrc20.swapExactTokensForTokens(amount, callContext.token, 1);
-            _deposit(sender, callContext, context.chainID);
+            _deposit(callContext, context.chainID);
         } else if (message[0] == hex"02") {
-            (address sender, CallContext memory callContext) =
-                abi.decode(message[1:message.length], (address, CallContext));
+            CallContext memory callContext = abi.decode(message[1:message.length], (CallContext));
             callContext.token = _getUSDC(callContext.targetChain);
-            amount = _withdraw(sender, callContext, zrc20, amount, context.chainID);
+            amount = _withdraw(callContext, zrc20, amount, context.chainID);
             if (amount != 0) {
-                // TODO: fix refunds
-                _getStorage().refunds[sender][zrc20] += amount;
-                emit RefundAdded(sender, zrc20, amount);
+                IERC20(zrc20).safeIncreaseAllowance(address(REFUND_VAULT), amount);
+                REFUND_VAULT.addRefunds(callContext.sender, IERC20(zrc20), amount);
+                emit RefundAdded(callContext.sender, zrc20, amount);
             }
         } else if (message[0] == hex"03") {
+            if (_getStorage().isWithdrawPaused) revert WithdrawIsForbidden();
             (address sender, address receiver, uint256 destinationChain) =
                 abi.decode(message[1:message.length], (address, address, uint256));
             CallContext memory callContext;
             callContext.targetChain = context.chainID;
             callContext.to = receiver;
             callContext.destinationChain = destinationChain;
-            if (destinationChain == block.chainid) {
+            if (destinationChain == CHAIN_ID) {
                 IERC20(zrc20).safeTransfer(receiver, amount);
                 callContext.token = zrc20;
                 callContext.amount = amount;
@@ -173,6 +174,9 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
                     revertMessage: message,
                     onRevertGasLimit: 250_000
                 });
+
+                IERC20(targetToken).safeIncreaseAllowance(address(GATEWAY), amount);
+                IERC20(gasZRC20).safeIncreaseAllowance(address(GATEWAY), gasFee);
                 GATEWAY.withdraw(bytes.concat(bytes20(receiver)), amount, targetToken, revertOptions);
             }
             emit Withdraw(sender, callContext, context.chainID);
@@ -184,15 +188,17 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     /// @inheritdoc IYieldMil
     function deposit(CallContext calldata context) external {
         if (context.token != _getUSDC(context.targetChain)) revert NotUSDC();
-        uint256 amount = context.amount;
-        if (amount == 0) revert ZeroAmount();
-        IERC20(context.token).safeTransferFrom(msg.sender, address(this), amount);
-        _deposit(msg.sender, context, block.chainid);
+        if (msg.sender != context.sender) revert InvalidSender();
+
+        if (context.amount == 0) revert ZeroAmount();
+        IERC20(context.token).safeTransferFrom(msg.sender, address(this), context.amount);
+        _deposit(context, CHAIN_ID);
     }
 
     /// @inheritdoc IYieldMil
     function withdraw(CallContext calldata context) external payable {
         if (context.token != _getUSDC(context.targetChain)) revert NotUSDC();
+        if (msg.sender != context.sender) revert InvalidSender();
 
         uint256 amount = msg.value;
         // if amount is zero, sponsor the withdrawal
@@ -200,7 +206,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             WZETA.deposit{value: amount}();
         }
 
-        amount = _withdraw(msg.sender, context, address(WZETA), amount, block.chainid);
+        amount = _withdraw(context, address(WZETA), amount, CHAIN_ID);
 
         // Return excess funds
         if (amount != 0) {
@@ -210,35 +216,39 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
         }
     }
 
-    /// @inheritdoc IYieldMil
-    function withdrawRefunds(address to, address token) external {
-        // TODO: fix refunds
-        uint256 amount = _getStorage().refunds[msg.sender][token];
-        if (amount == 0) revert ZeroAmount();
-        delete _getStorage().refunds[msg.sender][token];
-        IERC20(token).safeTransfer(to, amount);
-        emit RefundSent(msg.sender, to, token, amount);
-    }
-
     /// @inheritdoc Revertable
     function onRevert(RevertContext calldata revertContext) external onlyGateway {
-        if (revertContext.sender != address(this)) revert InvalidRevert();
+        address sender = revertContext.sender;
+        if (sender != address(this)) revert InvalidRevert();
 
-        if (revertContext.amount != 0) {
-            (address sender,,, uint256 chainId) = abi.decode(
-                revertContext.revertMessage[1:revertContext.revertMessage.length], (address, address, uint256, uint256)
-            );
-            if (chainId == block.chainid) {
-                // return tokens to the original sender
-                IERC20(revertContext.asset).safeTransfer(sender, revertContext.amount);
+        bytes1 flag = revertContext.revertMessage[0];
+        uint256 amount = revertContext.amount;
+        if (amount != 0) {
+            uint256 chainId;
+            if (flag == hex"01") {
+                (sender,,, chainId) = abi.decode(
+                    revertContext.revertMessage[1:revertContext.revertMessage.length],
+                    (address, address, uint256, uint256)
+                );
+            } else if (flag == hex"03") {
+                (sender,, chainId) = abi.decode(
+                    revertContext.revertMessage[1:revertContext.revertMessage.length], (address, address, uint256)
+                );
             } else {
-                // TODO: fix refunds
-                _getStorage().refunds[sender][revertContext.asset] += revertContext.amount;
-                emit RefundAdded(sender, revertContext.asset, revertContext.amount);
+                revert InvalidRevert();
+            }
+
+            if (chainId == CHAIN_ID) {
+                // return tokens to the original sender
+                IERC20(revertContext.asset).safeTransfer(sender, amount);
+            } else {
+                address asset = revertContext.asset;
+                IERC20(asset).safeIncreaseAllowance(address(REFUND_VAULT), amount);
+                REFUND_VAULT.addRefunds(sender, IERC20(asset), amount);
+                emit RefundAdded(sender, asset, amount);
             }
         }
 
-        bytes1 flag = revertContext.revertMessage[0];
         if (flag == hex"01") {
             emit DepositReverted(revertContext);
         } else if (flag == hex"02" || flag == hex"03") {
@@ -250,26 +260,36 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
 
     /// @inheritdoc Abortable
     function onAbort(AbortContext calldata abortContext) external onlyGateway {
+        bytes1 flag = abortContext.revertMessage[0];
         uint256 amount = abortContext.amount;
         if (amount != 0) {
             address sender = address(bytes20(abortContext.sender));
             address receiver;
             if (sender == address(this)) {
-                (receiver,,,) = abi.decode(
-                    abortContext.revertMessage[1:abortContext.revertMessage.length],
-                    (address, address, uint256, uint256)
-                );
+                if (flag == hex"01") {
+                    (receiver,,,) = abi.decode(
+                        abortContext.revertMessage[1:abortContext.revertMessage.length],
+                        (address, address, uint256, uint256)
+                    );
+                } else if (flag == hex"03") {
+                    (receiver,,) = abi.decode(
+                        abortContext.revertMessage[1:abortContext.revertMessage.length], (address, address, uint256)
+                    );
+                } else {
+                    revert InvalidAbort();
+                }
             } else if (sender == _getStorage().EVMEntries[abortContext.chainID]) {
                 receiver = abi.decode(abortContext.revertMessage[1:abortContext.revertMessage.length], (address));
             } else {
                 revert InvalidAbort();
             }
-            // TODO: fix refunds
-            _getStorage().refunds[receiver][abortContext.asset] += amount;
-            emit RefundAdded(receiver, abortContext.asset, amount);
+
+            address asset = abortContext.asset;
+            IERC20(asset).safeIncreaseAllowance(address(REFUND_VAULT), amount);
+            REFUND_VAULT.addRefunds(receiver, IERC20(asset), amount);
+            emit RefundAdded(receiver, asset, amount);
         }
 
-        bytes1 flag = abortContext.revertMessage[0];
         if (flag == hex"01") {
             emit DepositAborted(abortContext);
         } else if (flag == hex"02" || flag == hex"03") {
@@ -309,18 +329,43 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     }
 
     /// @inheritdoc IYieldMil
-    function sendRefund(address from, address to, address token) external payable onlyOwner {
-        // TODO: fix refunds
-        uint256 amount = _getStorage().refunds[from][token];
-        if (amount == 0) revert ZeroAmount();
-        delete _getStorage().refunds[from][token];
-        IERC20(token).safeTransfer(to, amount);
-        emit RefundSent(from, to, token, amount);
+    function pauseDeposit() external onlyGuardian {
+        _getStorage().isDepositPaused = true;
+        emit DepositPaused(msg.sender, block.timestamp);
+    }
+
+    /// @inheritdoc IYieldMil
+    function pauseWithdraw() external onlyGuardian {
+        _getStorage().isWithdrawPaused = true;
+        emit WithdrawPaused(msg.sender, block.timestamp);
+    }
+
+    /// @inheritdoc IYieldMil
+    function unpauseDeposit() external payable onlyOwner {
+        delete _getStorage().isDepositPaused;
+        emit DepositUnpaused(block.timestamp);
+    }
+
+    /// @inheritdoc IYieldMil
+    function unpauseWithdraw() external payable onlyOwner {
+        delete _getStorage().isWithdrawPaused;
+        emit WithdrawUnpaused(block.timestamp);
+    }
+
+    /// @inheritdoc IYieldMil
+    function updateGuardian(address guardian, bool status) external payable onlyOwner {
+        _getStorage().guardians[guardian] = status;
+        emit GuardianUpdated(guardian, status);
     }
 
     /// @inheritdoc IYieldMil
     function getOwner() external view returns (address) {
         return _getStorage().owner;
+    }
+
+    /// @inheritdoc IYieldMil
+    function isGuardian(address guardian) external view returns (bool) {
+        return _getStorage().guardians[guardian];
     }
 
     /// @inheritdoc IYieldMil
@@ -333,20 +378,15 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
         return _getStorage().EVMEntries[chainId];
     }
 
-    /// @inheritdoc IYieldMil
-    function getRefunds(address from, address token) external view returns (uint256) {
-        // TODO: fix refunds
-        return _getStorage().refunds[from][token];
-    }
-
     /**
      * Deposits the tokens to the vault on an EVM.
-     * @dev Reverts if the vault does not exist
-     * @param sender - The address of the original sender
-     * @param context - The deposit call context
-     * @param chainId - The original chain id
+     * @dev Reverts if the vault does not exist.
+     * @param context - The deposit call context.
+     * @param chainId - The original chain id.
      */
-    function _deposit(address sender, CallContext memory context, uint256 chainId) internal {
+    function _deposit(CallContext memory context, uint256 chainId) internal {
+        if (_getStorage().isDepositPaused) revert DepositIsForbidden();
+
         address token = context.token;
         address vault = _getStorage().vaults[_getKey(context.targetChain, context.protocol, token)];
         if (vault == address(0)) revert InvalidVault();
@@ -359,7 +399,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             amount -= token.swapTokensForExactTokens(amount, gasZRC20, gasFee);
         }
 
-        bytes memory message = bytes.concat(hex"01", abi.encode(sender, context.to, amount, chainId));
+        bytes memory message = bytes.concat(hex"01", abi.encode(context.sender, context.to, amount, chainId));
         CallOptions memory callOptions = CallOptions({gasLimit: context.gasLimit, isArbitraryCall: false});
         RevertOptions memory revertOptions = RevertOptions({
             revertAddress: address(this),
@@ -369,26 +409,30 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             onRevertGasLimit: 250_000
         });
 
-        emit Deposit(sender, context.targetChain, context.protocol, context.to, token, amount, chainId);
+        emit Deposit(context.sender, context.targetChain, context.protocol, context.to, token, amount, chainId);
 
+        IERC20(token).safeIncreaseAllowance(address(GATEWAY), amount);
+        IERC20(gasZRC20).safeIncreaseAllowance(address(GATEWAY), gasFee);
         GATEWAY.withdrawAndCall(bytes.concat(bytes20(vault)), amount, token, message, callOptions, revertOptions);
     }
 
     /**
      * Withdraws the tokens from the vault on an EVM.
-     * @dev Reverts if the vault does not exist
-     * @param sender - The address of the original sender
-     * @param context - The withdrawal call context
-     * @param tokenForFee - The token for the gas fee
-     * @param amount - The amount
-     * @param chainId - The original chain id
+     * @dev Reverts if the vault does not exist.
+     * @param context - The withdrawal call context.
+     * @param tokenForFee - The token for the gas fee.
+     * @param amount - The amount.
+     * @param chainId - The original chain id.
      */
-    function _withdraw(address sender, CallContext memory context, address tokenForFee, uint256 amount, uint256 chainId)
+    function _withdraw(CallContext memory context, address tokenForFee, uint256 amount, uint256 chainId)
         internal
         returns (uint256)
     {
+        if (_getStorage().isWithdrawPaused) revert WithdrawIsForbidden();
         address vault = _getStorage().vaults[_getKey(context.targetChain, context.protocol, context.token)];
         if (vault == address(0)) revert InvalidVault();
+        _verifySignature(context, vault);
+
         // Get the gas fee for the call
         address gasZRC20 = _getNative(context.targetChain);
         (, uint256 gasFee) = IZRC20(gasZRC20).withdrawGasFeeWithGasLimit(context.gasLimit);
@@ -397,8 +441,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             amount -= tokenForFee.swapTokensForExactTokens(amount, gasZRC20, gasFee);
         }
 
-        bytes memory message =
-            bytes.concat(hex"02", abi.encode(sender, context.to, context.amount, context.destinationChain));
+        bytes memory message = bytes.concat(hex"02", abi.encode(context));
         CallOptions memory callOptions = CallOptions({gasLimit: context.gasLimit, isArbitraryCall: false});
         RevertOptions memory revertOptions = RevertOptions({
             revertAddress: address(this),
@@ -408,11 +451,34 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             onRevertGasLimit: 250_000
         });
 
-        emit Withdraw(sender, context, chainId);
+        emit Withdraw(context.sender, context, chainId);
 
+        IERC20(gasZRC20).safeIncreaseAllowance(address(GATEWAY), gasFee);
         GATEWAY.call(bytes.concat(bytes20(vault)), gasZRC20, message, callOptions, revertOptions);
 
         return amount;
+    }
+
+    /**
+     * Verifies signature.
+     * @param _context - The call context.
+     * @param _vault - The vault address.
+     */
+    function _verifySignature(CallContext memory _context, address _vault) internal view {
+        if (_context.deadline < block.timestamp) revert SignatureExpired();
+
+        bytes32 digest = keccak256(
+            abi.encode(
+                _context.sender,
+                _context.to,
+                _context.amount,
+                _context.destinationChain,
+                _context.nonce,
+                _context.targetChain,
+                _vault
+            )
+        ).toEthSignedMessageHash();
+        if (!_context.sender.isValidSignatureNow(digest, _context.signature)) revert InvalidSignature();
     }
 
     /**
@@ -424,62 +490,6 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
      */
     function _getKey(uint256 chain, Protocol protocol, address token) internal pure returns (bytes32) {
         return keccak256(abi.encode(chain, protocol, token));
-    }
-
-    /**
-     * Initializes the vaults.
-     * @param _chains - The chains.
-     * @param _protocols - The protocols.
-     * @param _vaults - The vault addresses.
-     * @param _tokens - The token addresses.
-     */
-    function _initVaults(
-        uint256[] calldata _chains,
-        Protocol[] calldata _protocols,
-        address[] calldata _vaults,
-        address[] calldata _tokens
-    ) internal {
-        uint256 len = _chains.length;
-        if (len != _protocols.length || len != _vaults.length || len != _tokens.length) {
-            revert InvalidInitialization();
-        }
-        Storage storage s = _getStorage();
-        for (uint256 i; i < len; ++i) {
-            if (_tokens[i] != _getUSDC(_chains[i])) revert NotUSDC();
-            if (_vaults[i] == address(0)) revert ZeroAddress();
-            s.vaults[_getKey(_chains[i], _protocols[i], _tokens[i])] = _vaults[i];
-            emit VaultUpdated(_chains[i], _protocols[i], _tokens[i], _vaults[i]);
-        }
-    }
-
-    /**
-     * Initializes the EVMEntries.
-     * @param _chains - The chains.
-     * @param _EVMEntries - The EVMEntry addresses.
-     */
-    function _initEVMEntries(uint256[] calldata _chains, address[] calldata _EVMEntries) internal {
-        uint256 len = _chains.length;
-        if (len != _EVMEntries.length) revert InvalidInitialization();
-        Storage storage s = _getStorage();
-        for (uint256 i; i < len; ++i) {
-            if (_EVMEntries[i] == address(0)) revert ZeroAddress();
-            s.EVMEntries[_chains[i]] = _EVMEntries[i];
-            emit EVMEntryUpdated(_chains[i], _EVMEntries[i]);
-        }
-    }
-
-    /**
-     * Approves the gateway for the USDC and native tokens for the given chains.
-     * @param _chains - The chains.
-     */
-    function _approvals(uint256[] calldata _chains) internal {
-        uint256 len = _chains.length;
-        uint256 chain;
-        for (uint256 i; i < len; ++i) {
-            chain = _chains[i];
-            IZRC20(_getUSDC(chain)).approve(address(GATEWAY), type(uint256).max);
-            IZRC20(_getNative(chain)).approve(address(GATEWAY), type(uint256).max);
-        }
     }
 
     /**
