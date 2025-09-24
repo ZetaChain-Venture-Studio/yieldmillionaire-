@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {EVMEntry} from "../src/EVMEntry.sol";
+import {EVMEntry, IEVMEntry} from "../src/EVMEntry.sol";
 import {ProxyBase} from "../src/ProxyBase.sol";
 import "../src/utils/Types.sol";
 import "./Constants.sol";
@@ -11,7 +11,7 @@ contract DeployEVMEntryScript is Script {
     uint256 immutable chainId = block.chainid;
     address immutable admin =
         chainId == 421614 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
-    address constant implTestnet = 0x2CeFaFcA1eBba884718cB512B9C5D18061f2152A;
+    address constant implTestnet = 0xE879848fF873eF67CC6Bdfb21D275236548B2a09;
     address constant implBase = 0xaf5F8E58e6a26cEF6fE6EBBA562fc4d210d72BbD;
     address constant implPolygon = 0x7509c6091F586258E6FE0EC95be9096Ad578bF75;
     address constant implBnb = 0xA939a79cC67298fb014C164d621E44e4b5A312f5;
@@ -22,6 +22,7 @@ contract DeployEVMEntryScript is Script {
 
     struct EVMEntryConstructorArgs {
         IGatewayEVM gateway;
+        IPermit2 permit2;
         address yieldMil;
         address usdc;
     }
@@ -29,31 +30,35 @@ contract DeployEVMEntryScript is Script {
     // arbitrum
     EVMEntryConstructorArgs testnetArgs = EVMEntryConstructorArgs({
         gateway: IGatewayEVM(0x0dA86Dc3F9B71F84a0E97B0e2291e50B7a5df10f),
+        permit2: permit2,
         yieldMil: 0x3a1E99a396607B822a68B194eE856d05fc38d848, // proxy
         usdc: 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
     });
 
     EVMEntryConstructorArgs baseArgs = EVMEntryConstructorArgs({
         gateway: gateway,
+        permit2: permit2,
         yieldMil: yieldMil, // proxy
         usdc: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
     });
 
     EVMEntryConstructorArgs polygonArgs = EVMEntryConstructorArgs({
         gateway: gateway,
+        permit2: permit2,
         yieldMil: yieldMil, // proxy
         usdc: 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359
     });
 
     EVMEntryConstructorArgs bnbArgs = EVMEntryConstructorArgs({
         gateway: gateway,
+        permit2: permit2,
         yieldMil: yieldMil, // proxy
         usdc: 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d
     });
 
-    // deploy EVMEntry implementation
-    /* function run() public {
-        vm.startBroadcast();
+    function run() public {
+        // deploy EVMEntry implementation
+        /* vm.startBroadcast();
         EVMEntryConstructorArgs memory args;
         if (chainId == 8453) {
             args = baseArgs;
@@ -66,14 +71,20 @@ contract DeployEVMEntryScript is Script {
         } else {
             revert("Unsupported network");
         }
-        new EVMEntry(args.gateway, args.yieldMil, args.usdc);
-        vm.stopBroadcast();
-    } */
+        new EVMEntry(args.gateway, args.permit2, args.yieldMil, args.usdc);
+        vm.stopBroadcast(); */
 
-    // change implementation
-    function run() public {
-        vm.startBroadcast();
+        // change implementation
+        /* vm.startBroadcast();
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
+        vm.stopBroadcast(); */
+
+        // change implementation and reinitialize
+        vm.startBroadcast();
+        IEVMEntry.ReInitContext memory reInitContext = _getReInitContext();
+        reInitContext.version = 2;
+        bytes memory data = abi.encodeCall(EVMEntry.reinitialize, reInitContext);
+        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), data);
         vm.stopBroadcast();
     }
 
@@ -144,6 +155,15 @@ contract DeployEVMEntryScript is Script {
             tokens[0] = bnbArgs.usdc;
             vaults[0] = 0xCB513DB80C6C76593770Fc4a1827d5Ab8186b0cD;
         } else {
+            revert("Unsupported network");
+        }
+    }
+
+    function _getReInitContext() internal view returns (IEVMEntry.ReInitContext memory reInitContext) {
+        if (chainId == 8453) {} else if (chainId == 137) {} else if (chainId == 421614) {
+            reInitContext.vaults = new address[](1);
+            reInitContext.vaults[0] = 0x2DEEdcE96f1B40301B7CA1F8877286f73dE87CF3;
+        } else if (chainId == 56) {} else {
             revert("Unsupported network");
         }
     }

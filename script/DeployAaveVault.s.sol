@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {AaveVault} from "../src/AaveVault.sol";
+import {AaveVault, IVault} from "../src/AaveVault.sol";
 import {ProxyBase} from "../src/ProxyBase.sol";
-
 import "./Constants.sol";
 import {IPool} from "@aave/contracts/interfaces/IPool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -13,7 +12,7 @@ contract DeployAaveVaultScript is Script {
     uint256 immutable chainId = block.chainid;
     address immutable admin =
         chainId == 421614 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
-    address constant implTestnet = 0x3695E1C3e362D86CCA3520Abc335eFfe58F33423;
+    address constant implTestnet = 0xc105844ee281A68A29d171195f2A40FF1f9443e6;
     address constant implBase = 0x862f46d57B3aa0FD3592D2DbA8Ea1cA4A11e846E;
     address constant implPolygon = 0x8bcd92E87B3f67457C80F085379Ef7fC65d3bCcD;
     address constant implBnb = 0xF441cd47327af1A70A067Ff7f5cAd122bA1B7376;
@@ -68,9 +67,9 @@ contract DeployAaveVaultScript is Script {
         evmEntry: 0x33CB07CA2D83298dc4ee9Efa5b0c421632b15B11 // proxy
     });
 
-    // deploy AaveVault implementation
-    /* function run() public {
-        vm.startBroadcast();
+    function run() public {
+        // deploy AaveVault implementation
+        /* vm.startBroadcast();
         AaveVaultConstructorArgs memory args;
         if (chainId == 8453) {
             args = baseArgs;
@@ -84,23 +83,29 @@ contract DeployAaveVaultScript is Script {
             revert("Unsupported network");
         }
         new AaveVault(args.pool, args.token, args.asset, args.gateway, args.yieldMil, args.evmEntry);
-        vm.stopBroadcast();
-    } */
+        vm.stopBroadcast(); */
 
-    // change implementation
-    /* function run() public {
-        vm.startBroadcast();
+        // change implementation
+        /* vm.startBroadcast();
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
+        vm.stopBroadcast(); */
+
+        // change implementation and reinitialize
+        vm.startBroadcast();
+        IVault.ReInitContext memory reInitContext = _getReInitContext();
+        reInitContext.version = 2;
+        bytes memory data = abi.encodeCall(AaveVault.reinitialize, reInitContext);
+        ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), data);
         vm.stopBroadcast();
-    } */
+    }
 
     // deploy proxy
-    function run() public {
+    /* function run() public {
         vm.startBroadcast();
         bytes memory data = abi.encodeCall(AaveVault.initialize, (admin, 200, 2123450458536208768));
         new ProxyBase(_getImpl(), admin, data);
         vm.stopBroadcast();
-    }
+    } */
 
     // get an address at nonce + 1
     /* function run() public {
@@ -108,6 +113,15 @@ contract DeployAaveVaultScript is Script {
         console.log(vm.computeCreateAddress(admin, vm.getNonce(admin) + 1));
         vm.stopBroadcast();
     } */
+
+    function _getReInitContext() internal view returns (IVault.ReInitContext memory reInitContext) {
+        if (chainId == 8453) {} else if (chainId == 137) {} else if (chainId == 421614) {
+            reInitContext.guardians = new address[](1);
+            reInitContext.guardians[0] = admin;
+        } else if (chainId == 56) {} else {
+            revert("Unsupported network");
+        }
+    }
 
     function _getImpl() internal view returns (address) {
         if (chainId == 8453) {
