@@ -3,10 +3,21 @@ pragma solidity ^0.8.26;
 
 import "../utils/Types.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IPermit2} from "@permit2/interfaces/IPermit2.sol";
 import {IGatewayEVM} from "@zetachain/contracts/evm/interfaces/IGatewayEVM.sol";
 import {RevertContext} from "@zetachain/contracts/evm/interfaces/IGatewayEVM.sol";
 
 interface IEVMEntry {
+    /**
+     * A struct to store the context of the reinitialization call.
+     * @param version - The version of the reinitialization call.
+     * @param guardians - The guardians of the contract.
+     */
+    struct ReInitContext {
+        uint64 version;
+        address[] vaults;
+    }
+
     /**
      * Emitted when a deposit is made
      * @param sender - The address of the sender
@@ -70,6 +81,10 @@ interface IEVMEntry {
      */
     function GATEWAY() external view returns (IGatewayEVM);
     /**
+     * Returns the PERMIT2 contract
+     */
+    function PERMIT2() external view returns (IPermit2);
+    /**
      * Returns the YIELDMIL contract address
      */
     function YIELDMIL() external view returns (address);
@@ -79,10 +94,11 @@ interface IEVMEntry {
     function USDC() external view returns (address);
 
     /**
-     * Deposits funds into the vault or sends them to Zetachain
-     * @param context - The deposit call context
+     * Deposits funds into the vault or sends them to Zetachain.
+     * @param context - The deposit call context.
+     * @return shares - The amount of minted shares.
      */
-    function deposit(CallContext calldata context) external;
+    function deposit(CallContext calldata context) external returns (uint256 shares);
     /**
      * Withdraws funds from the vault or calls Zetachain to withdraw
      * @param context - The withdrawal call context
