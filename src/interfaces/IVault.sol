@@ -155,7 +155,6 @@ interface IVault {
      * @param message - The withdraw message.
      */
     function withdraw(bytes calldata message) external;
-
     /**
      * Pauses the deposit.
      * @dev Only the guardian can pause the deposit.
@@ -183,7 +182,6 @@ interface IVault {
      * @param status - The status of the guardian.
      */
     function updateGuardian(address guardian, bool status) external payable;
-
     /**
      * Sets the fee.
      * @dev Only callable by the owner.
@@ -225,6 +223,11 @@ interface IVault {
      * Returns the owner.
      */
     function getOwner() external view returns (address);
+    /**
+     * Returns the guardian status.
+     * @param guardian - The address of the guardian.
+     */
+    function isGuardian(address guardian) external view returns (bool);
     /**
      * Returns the last vault balance.
      */

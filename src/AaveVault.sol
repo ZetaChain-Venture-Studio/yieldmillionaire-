@@ -223,6 +223,11 @@ contract AaveVault is IVault, AaveVaultStorage, Callable, Initializable {
     }
 
     /// @inheritdoc IVault
+    function isGuardian(address guardian) external view returns (bool) {
+        return _getStorage().guardians[guardian];
+    }
+
+    /// @inheritdoc IVault
     function getAssetsAndShares(address owner) external view returns (uint256 assets, uint256 shares) {
         shares = _getStorage().shareBalanceOf[owner];
         assets = _convertToAssets(shares);
@@ -318,6 +323,7 @@ contract AaveVault is IVault, AaveVaultStorage, Callable, Initializable {
      */
     function _withdraw(bytes calldata message) internal {
         if (_getStorage().isWithdrawPaused) revert WithdrawIsForbidden();
+
         (address sender, address receiver, uint256 shares, uint256 destinationChain) = _verifySignature(message);
         _accrueYield();
         uint256 amount = _convertToAssets(shares);
@@ -357,31 +363,22 @@ contract AaveVault is IVault, AaveVaultStorage, Callable, Initializable {
 
     /**
      * Verifies signature.
-     * @param message - Message containing sender, receiver, shares, destinationChain, nonce,
-     * deadline and signature.
+     * @param message - Message containing CallContext.
      * @return sender, receiver, shares, destinationChain
      */
     function _verifySignature(bytes calldata message) internal returns (address, address, uint256, uint256) {
-        (
-            address sender,
-            address receiver,
-            uint256 shares,
-            uint256 destinationChain,
-            uint256 deadline,
-            bytes memory signature
-        ) = abi.decode(message, (address, address, uint256, uint256, uint256, bytes));
-        if (deadline < block.timestamp) revert SignatureExpired();
+        CallContext memory context = abi.decode(message, (CallContext));
+        if (context.deadline < block.timestamp) revert SignatureExpired();
 
+        address sender = context.sender;
         uint256 nonce = _getStorage().nonces[sender];
         bytes32 digest = keccak256(
-            abi.encode(
-                sender, receiver, shares, destinationChain, nonce, CHAIN_ID, address(this)
-            )
+            abi.encode(sender, context.to, context.amount, context.destinationChain, nonce, CHAIN_ID, address(this))
         ).toEthSignedMessageHash();
-        if (!sender.isValidSignatureNow(digest, signature)) revert InvalidSignature();
+        if (!sender.isValidSignatureNow(digest, context.signature)) revert InvalidSignature();
 
         _getStorage().nonces[sender] = nonce + 1;
-        return (sender, receiver, shares, destinationChain);
+        return (sender, context.to, context.amount, context.destinationChain);
     }
 
     /**
