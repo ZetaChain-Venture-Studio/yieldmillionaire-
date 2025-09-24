@@ -8,7 +8,8 @@ optimizer_runs = 200
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts",
     "@zetachain/contracts=lib/protocol-contracts/contracts",
-    "@aave/contracts=lib/aave-v3-origin/src/contracts"
+    "@aave/contracts=lib/aave-v3-origin/src/contracts",
+    "@permit2/=lib/permit2/src"
 ]
 
 [rpc_endpoints]
@@ -17,8 +18,12 @@ polygon = "${POLYGON_RPC_URL}"
 zetachain = "${ZETACHAIN_RPC_URL}"
 bnb = "${BNB_RPC_URL}"
 zetachain_testnet = "${ZETACHAIN_TESTNET_RPC_URL}"
+arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC_URL}"
 
 [fmt]
 sort_imports = true
+
+[lint]
+lint_on_build = false
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

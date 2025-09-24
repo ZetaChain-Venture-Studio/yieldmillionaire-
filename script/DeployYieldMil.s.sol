@@ -2,8 +2,8 @@
 pragma solidity ^0.8.26;
 
 import {ProxyBase} from "../src/ProxyBase.sol";
-import {IGatewayZEVM, YieldMil} from "../src/YieldMil.sol";
-import {IYieldMil} from "../src/interfaces/IYieldMil.sol";
+import {RefundVault} from "../src/RefundVault.sol";
+import {IGatewayZEVM, IYieldMil, YieldMil} from "../src/YieldMil.sol";
 import "../src/utils/Types.sol";
 import {Script, console} from "forge-std/Script.sol";
 
@@ -11,13 +11,14 @@ contract DeployYieldMilScript is Script {
     uint256 immutable chainId = block.chainid;
     address immutable admin =
         chainId == 7001 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
-    address constant implTestnet = 0x599fA4C6952ef77d959DD7007b2C2e9183edAe3F;
+    address constant implTestnet = 0xfB6F22B331C402B1F7130053F60a7d1b57AD00e2;
     address constant implMainnet = 0x20378cdb68e91C7A35a207a5bC5cF9e4f1d942f4;
     address constant proxyTestnet = 0x3a1E99a396607B822a68B194eE856d05fc38d848;
     address constant proxyMainnet = 0xE65eEe518A897618cBEe25898f80200E7988c81e;
 
     struct YieldMilConstructorArgs {
         IGatewayZEVM gateway;
+        RefundVault refundVault;
         address usdcBase;
         address ethBase;
         address usdcPolygon;
@@ -28,6 +29,7 @@ contract DeployYieldMilScript is Script {
 
     YieldMilConstructorArgs testnetArgs = YieldMilConstructorArgs({
         gateway: IGatewayZEVM(0x6c533f7fE93fAE114d0954697069Df33C9B74fD7),
+        refundVault: RefundVault(0xa4d973a5eE54ac5aAB74465900947D2208011E14),
         usdcBase: 0x4bC32034caCcc9B7e02536945eDbC286bACbA073, // arbitrum
         ethBase: 0x1de70f3e971B62A0707dA18100392af14f7fB677, // arbitrum
         usdcPolygon: 0x4bC32034caCcc9B7e02536945eDbC286bACbA073,
@@ -38,6 +40,7 @@ contract DeployYieldMilScript is Script {
 
     YieldMilConstructorArgs mainnetArgs = YieldMilConstructorArgs({
         gateway: IGatewayZEVM(0xfEDD7A6e3Ef1cC470fbfbF955a22D793dDC0F44E),
+        refundVault: RefundVault(0x0000000000000000000000000000000000000000),
         usdcBase: 0x96152E6180E085FA57c7708e18AF8F05e37B479D,
         ethBase: 0x1de70f3e971B62A0707dA18100392af14f7fB677,
         usdcPolygon: 0xfC9201f4116aE6b054722E10b98D904829b469c3,
@@ -46,9 +49,9 @@ contract DeployYieldMilScript is Script {
         bnbBnb: 0x48f80608B672DC30DC7e3dbBd0343c5F02C738Eb
     });
 
-    // deploy yieldMil implementation
-    /* function run() public {
-        vm.startBroadcast();
+    function run() public {
+        // deploy yieldMil implementation
+        /* vm.startBroadcast();
         YieldMilConstructorArgs memory args;
         if (chainId == 7000) {
             args = mainnetArgs;
@@ -57,26 +60,22 @@ contract DeployYieldMilScript is Script {
         } else {
             revert("Unsupported network");
         }
-        new YieldMil(args.gateway, args.usdcBase, args.ethBase, args.usdcPolygon, args.polPolygon, args.usdcBnb, args.bnbBnb);
-        vm.stopBroadcast();
-    } */
+        new YieldMil(args.gateway, args.refundVault, args.usdcBase, args.ethBase, args.usdcPolygon, args.polPolygon, args.usdcBnb, args.bnbBnb);
+        vm.stopBroadcast(); */
 
-    // change implementation
-    function run() public {
-        vm.startBroadcast();
+        // change implementation
+        /* vm.startBroadcast();
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
-        vm.stopBroadcast();
-    }
+        vm.stopBroadcast(); */
 
-    // change implementation and reinitialize
-    /* function run() public {
+        // change implementation and reinitialize
         vm.startBroadcast();
         IYieldMil.ReInitContext memory reInitContext = _getReInitContext();
         reInitContext.version = 2;
         bytes memory data = abi.encodeCall(YieldMil.reinitialize, reInitContext);
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), data);
         vm.stopBroadcast();
-    } */
+    }
 
     // deploy proxy without initializing
     /* function run() public {
@@ -180,27 +179,9 @@ contract DeployYieldMilScript is Script {
         if (chainId == 7000) {
             reInitContext.chains = new uint256[](1);
             reInitContext.chains[0] = 56;
-            reInitContext.protocols = new Protocol[](1);
-            reInitContext.protocols[0] = Protocol.Aave;
-            reInitContext.tokens = new address[](1);
-            reInitContext.tokens[0] = mainnetArgs.usdcBnb;
-            reInitContext.vaults = new address[](1);
-            reInitContext.vaults[0] = 0xCB513DB80C6C76593770Fc4a1827d5Ab8186b0cD;
-            reInitContext.EVMEntryChains = reInitContext.chains;
-            reInitContext.EVMEntries = new address[](1);
-            reInitContext.EVMEntries[0] = 0x33CB07CA2D83298dc4ee9Efa5b0c421632b15B11;
         } else if (chainId == 7001) {
             reInitContext.chains = new uint256[](1);
-            reInitContext.chains[0] = 97;
-            reInitContext.protocols = new Protocol[](1);
-            reInitContext.protocols[0] = Protocol.Aave;
-            reInitContext.tokens = new address[](1);
-            reInitContext.tokens[0] = testnetArgs.usdcBnb;
-            reInitContext.vaults = new address[](1);
-            reInitContext.vaults[0] = address(0);
-            reInitContext.EVMEntryChains = reInitContext.chains;
-            reInitContext.EVMEntries = new address[](1);
-            reInitContext.EVMEntries[0] = address(0);
+            reInitContext.chains[0] = 421614;
         } else {
             revert("Unsupported network");
         }

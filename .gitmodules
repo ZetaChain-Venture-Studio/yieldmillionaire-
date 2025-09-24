@@ -10,3 +10,6 @@
 [submodule "lib/aave-v3-origin"]
 	path = lib/aave-v3-origin
 	url = https://github.com/aave-dao/aave-v3-origin
+[submodule "lib/permit2"]
+	path = lib/permit2
+	url = https://github.com/Uniswap/permit2

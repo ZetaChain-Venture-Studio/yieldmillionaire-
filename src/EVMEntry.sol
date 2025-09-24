@@ -6,6 +6,7 @@ import {IVault} from "./interfaces/IVault.sol";
 import "./utils/EVMEntryStorage.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ISignatureTransfer} from "@permit2/interfaces/ISignatureTransfer.sol";
 import {RevertOptions, Revertable} from "@zetachain/contracts/evm/interfaces/IGatewayEVM.sol";
 
 /**
@@ -16,10 +17,14 @@ import {RevertOptions, Revertable} from "@zetachain/contracts/evm/interfaces/IGa
 contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
     using SafeERC20 for IERC20;
 
+    /// gas savings
+    uint256 internal immutable CHAIN_ID = block.chainid;
     /// @inheritdoc IEVMEntry
-    string public constant VERSION = "1.2.0";
+    string public constant VERSION = "1.3.0";
     /// @inheritdoc IEVMEntry
     IGatewayEVM public immutable GATEWAY;
+    /// @inheritdoc IEVMEntry
+    IPermit2 public immutable PERMIT2;
     /// @inheritdoc IEVMEntry
     address public immutable YIELDMIL;
     /// @inheritdoc IEVMEntry
@@ -35,10 +40,14 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
         _;
     }
 
-    constructor(IGatewayEVM _gateway, address _yieldMil, address _usdc) payable {
+    constructor(IGatewayEVM _gateway, IPermit2 _permit2, address _yieldMil, address _usdc) payable {
         _disableInitializers();
-        if (address(_gateway) == address(0) || _yieldMil == address(0) || _usdc == address(0)) revert ZeroAddress();
+        if (
+            address(_gateway) == address(0) || address(_permit2) == address(0) || _yieldMil == address(0)
+                || _usdc == address(0)
+        ) revert ZeroAddress();
         GATEWAY = _gateway;
+        PERMIT2 = _permit2;
         YIELDMIL = _yieldMil;
         USDC = _usdc;
     }
@@ -46,83 +55,90 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
     receive() external payable {}
 
     /**
-     * Initialize the contract
-     * @param newOwner - The owner of the contract
-     * @param protocols - The protocols
-     * @param tokens - The tokens
-     * @param vaults - The vaults
+     * Reinitializes the contract for new versions.
+     * @param reInitContext - The reinitialization context.
      */
-    function initialize(
-        address newOwner,
-        Protocol[] calldata protocols,
-        address[] calldata tokens,
-        address[] calldata vaults
-    ) external payable initializer {
-        if (newOwner == address(0)) revert ZeroAddress();
-        _getStorage().owner = newOwner;
-        emit OwnerUpdated(newOwner);
-
-        uint256 len = protocols.length;
-        if (len != tokens.length || len != vaults.length) revert InvalidInitialization();
-        address token;
-        address vault;
-        Protocol protocol;
+    function reinitialize(ReInitContext calldata reInitContext)
+        external
+        payable
+        onlyOwner
+        reinitializer(reInitContext.version)
+    {
+        // remove approvals
+        IERC20(USDC).approve(address(GATEWAY), 0);
+        uint256 len = reInitContext.vaults.length;
         for (uint256 i; i < len; ++i) {
-            token = tokens[i];
-            vault = vaults[i];
-            protocol = protocols[i];
-            if (token == address(0) || vault == address(0)) revert ZeroAddress();
-            _getStorage().vaults[_getKey(protocol, token)] = vault;
-            emit VaultUpdated(protocol, token, vault);
-            IERC20(token).approve(vault, type(uint256).max);
-            IERC20(token).approve(address(GATEWAY), type(uint256).max);
+            IERC20(USDC).approve(reInitContext.vaults[i], 0);
         }
     }
 
     /// @inheritdoc IEVMEntry
-    function deposit(CallContext calldata context) external {
+    function deposit(CallContext calldata context) external returns (uint256 shares) {
+        address sender = context.sender;
+        uint256 amount = context.amount;
+        address token = context.token;
         if (
-            context.targetChain == 0 || context.to == address(0) || context.amount == 0 || context.destinationChain == 0
-        ) revert InvalidContext();
+            context.targetChain == 0 || sender == address(0) || context.to == address(0) || token == address(0)
+                || amount == 0
+        ) {
+            revert InvalidContext();
+        }
 
-        IERC20(context.token).safeTransferFrom(msg.sender, address(this), context.amount);
+        if (context.signature.length == 0) {
+            IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        } else {
+            ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
+                permitted: ISignatureTransfer.TokenPermissions({token: token, amount: amount}),
+                nonce: context.nonce,
+                deadline: context.deadline
+            });
+            ISignatureTransfer.SignatureTransferDetails memory transferDetails =
+                ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: amount});
+            PERMIT2.permitTransferFrom(permit, transferDetails, sender, context.signature);
+        }
         emit Deposit(msg.sender, context);
 
-        if (context.targetChain == block.chainid) {
-            address vault = _getStorage().vaults[_getKey(context.protocol, context.token)];
+        if (context.targetChain == CHAIN_ID) {
+            address vault = _getStorage().vaults[_getKey(context.protocol, token)];
             if (vault == address(0)) revert InvalidVault();
-            bytes memory message = abi.encode(msg.sender, context.to, context.amount, block.chainid);
-            IVault(vault).deposit(message);
+
+            bytes memory message = abi.encode(sender, context.to, amount, CHAIN_ID);
+            IERC20(token).safeIncreaseAllowance(vault, amount);
+            shares = IVault(vault).deposit(message);
         } else {
-            if (context.token != USDC) revert NotUSDC();
-            bytes memory message = bytes.concat(hex"01", abi.encode(msg.sender, context));
+            if (token != USDC) revert NotUSDC();
+            bytes memory message = bytes.concat(hex"01", abi.encode(context));
             RevertOptions memory revertOptions = RevertOptions({
                 revertAddress: address(this),
                 callOnRevert: true,
                 abortAddress: YIELDMIL,
-                revertMessage: bytes.concat(hex"01", abi.encode(msg.sender)),
+                revertMessage: bytes.concat(hex"01", abi.encode(sender)),
                 onRevertGasLimit: 250_000
             });
-            GATEWAY.depositAndCall(YIELDMIL, context.amount, context.token, message, revertOptions);
+            IERC20(USDC).safeIncreaseAllowance(address(GATEWAY), amount);
+            GATEWAY.depositAndCall(YIELDMIL, amount, token, message, revertOptions);
         }
     }
 
     /// @inheritdoc IEVMEntry
     function withdraw(CallContext calldata context) external payable {
         if (
-            context.targetChain == 0 || context.to == address(0) || context.amount == 0 || context.destinationChain == 0
+            context.targetChain == 0 || context.to == address(0) || context.sender == address(0)
+                || context.token == address(0) || context.amount == 0 || context.destinationChain == 0
+                || context.signature.length == 0
         ) revert InvalidContext();
 
         emit Withdraw(msg.sender, context);
 
-        if (context.targetChain == block.chainid) {
+        if (context.targetChain == CHAIN_ID) {
             if (msg.value != 0) revert NotZeroValue();
             address vault = _getStorage().vaults[_getKey(context.protocol, context.token)];
             if (vault == address(0)) revert InvalidVault();
-            bytes memory message = abi.encode(msg.sender, context.to, context.amount, context.destinationChain);
+
+            bytes memory message = abi.encode(context);
             IVault(vault).withdraw(message);
         } else {
-            bytes memory message = bytes.concat(hex"02", abi.encode(msg.sender, context));
+            bytes memory message = bytes.concat(hex"02", abi.encode(context));
             RevertOptions memory revertOptions;
             if (msg.value == 0) {
                 GATEWAY.call(YIELDMIL, message, revertOptions);
@@ -131,7 +147,7 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
                     revertAddress: address(this),
                     callOnRevert: true,
                     abortAddress: YIELDMIL,
-                    revertMessage: bytes.concat(hex"02", abi.encode(msg.sender)),
+                    revertMessage: bytes.concat(hex"02", abi.encode(context.sender)),
                     onRevertGasLimit: 250_000
                 });
                 GATEWAY.depositAndCall{value: msg.value}(YIELDMIL, message, revertOptions);
@@ -145,6 +161,8 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
     {
         address vault = _getStorage().vaults[_getKey(protocol, token)];
         if (msg.sender != vault) revert NotVault();
+
+        IERC20(token).safeTransferFrom(vault, address(this), amount);
         bytes memory message = bytes.concat(hex"03", vaultMessage);
         RevertOptions memory revertOptions = RevertOptions({
             revertAddress: address(this),
@@ -153,6 +171,7 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
             revertMessage: bytes.concat(hex"03", abi.encode(sender)),
             onRevertGasLimit: 250_000
         });
+        IERC20(token).safeIncreaseAllowance(address(GATEWAY), amount);
         GATEWAY.depositAndCall(YIELDMIL, amount, token, message, revertOptions);
     }
 
@@ -225,8 +244,9 @@ contract EVMEntry is IEVMEntry, EVMEntryStorage, Revertable, Initializable {
         uint256 len = uint256(type(Protocol).max) + 1;
         assets = new uint256[](len);
         shares = new uint256[](len);
+        address vault;
         for (uint256 i; i < len; ++i) {
-            address vault = _getStorage().vaults[_getKey(Protocol(i), token)];
+            vault = _getStorage().vaults[_getKey(Protocol(i), token)];
             if (vault == address(0)) {
                 (assets[i], shares[i]) = (0, 0);
             } else {

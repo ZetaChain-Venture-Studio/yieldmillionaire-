@@ -19,6 +19,10 @@ contract AaveVaultStorage {
      * @param totalShares - The total shares.
      * @param owner - The owner of the contract.
      * @param shareBalanceOf - The share balance of each address.
+     * @param isDepositPaused - Whether the deposit is paused.
+     * @param isWithdrawPaused - Whether the withdraw is paused.
+     * @param guardians - The guardians of the contract, that can pause the deposit and/or withdraw.
+     * @param nonces - Current free nonce of each address.
      */
     struct Storage {
         uint16 fee;
@@ -26,7 +30,11 @@ contract AaveVaultStorage {
         uint256 lastVaultBalance;
         uint256 totalShares;
         address owner;
-        mapping(address => uint256) shareBalanceOf;
+        mapping(address => uint256 shares) shareBalanceOf;
+        bool isDepositPaused;
+        bool isWithdrawPaused;
+        mapping(address => bool status) guardians;
+        mapping(address => uint256 nonce) nonces;
     }
 
     /**
