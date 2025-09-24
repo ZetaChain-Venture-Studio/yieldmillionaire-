@@ -230,11 +230,10 @@ interface IVault {
      */
     function getLastVaultBalance() external view returns (uint256);
     /**
-     * Returns whether the nonce is used.
+     * Returns current free nonce.
      * @param sender - The address of the sender.
-     * @param nonce - The nonce to check.
      */
-    function isNonceUsed(address sender, uint256 nonce) external view returns (bool);
+    function getNonce(address sender) external view returns (uint256);
     /**
      * Returns the total supply of shares.
      */

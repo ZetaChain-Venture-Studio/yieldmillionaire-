@@ -234,8 +234,8 @@ contract AaveVault is IVault, AaveVaultStorage, Callable, Initializable {
     }
 
     /// @inheritdoc IVault
-    function isNonceUsed(address sender, uint256 nonce) external view returns (bool) {
-        return _getStorage().nonces[sender][nonce];
+    function getNonce(address sender) external view returns (uint256) {
+        return _getStorage().nonces[sender];
     }
 
     /// @inheritdoc IVault
@@ -313,7 +313,7 @@ contract AaveVault is IVault, AaveVaultStorage, Callable, Initializable {
      * Withdraws assets from the pool, burns shares and sends tokens to a receiver or to EVMEntry.
      * @dev If user tries to withdraw more than they have, it will underflow.
      * @notice Reverts when withdraw is paused.
-     * @param message - Message containing sender, receiver, shares, destinationChain, nonce,
+     * @param message - Message containing sender, receiver, shares, destinationChain,
      * deadline and signature.
      */
     function _withdraw(bytes calldata message) internal {
@@ -367,18 +367,20 @@ contract AaveVault is IVault, AaveVaultStorage, Callable, Initializable {
             address receiver,
             uint256 shares,
             uint256 destinationChain,
-            uint256 nonce,
             uint256 deadline,
             bytes memory signature
-        ) = abi.decode(message, (address, address, uint256, uint256, uint256, uint256, bytes));
-        if (_getStorage().nonces[sender][nonce]) revert NonceIsUsed(sender, nonce);
+        ) = abi.decode(message, (address, address, uint256, uint256, uint256, bytes));
         if (deadline < block.timestamp) revert SignatureExpired();
 
+        uint256 nonce = _getStorage().nonces[sender];
         bytes32 digest = keccak256(
-            abi.encode(sender, receiver, shares, destinationChain, nonce, CHAIN_ID, address(this))
+            abi.encode(
+                sender, receiver, shares, destinationChain, nonce, CHAIN_ID, address(this)
+            )
         ).toEthSignedMessageHash();
         if (!sender.isValidSignatureNow(digest, signature)) revert InvalidSignature();
-        _getStorage().nonces[sender][nonce] = true;
+
+        _getStorage().nonces[sender] = nonce + 1;
         return (sender, receiver, shares, destinationChain);
     }
 

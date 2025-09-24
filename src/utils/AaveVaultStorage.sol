@@ -22,7 +22,7 @@ contract AaveVaultStorage {
      * @param isDepositPaused - Whether the deposit is paused.
      * @param isWithdrawPaused - Whether the withdraw is paused.
      * @param guardians - The guardians of the contract, that can pause the deposit and/or withdraw.
-     * @param nonces - The nonces of each address.
+     * @param nonces - Current free nonce of each address.
      */
     struct Storage {
         uint16 fee;
@@ -34,7 +34,7 @@ contract AaveVaultStorage {
         bool isDepositPaused;
         bool isWithdrawPaused;
         mapping(address => bool status) guardians;
-        mapping(address => mapping(uint256 nonce => bool isUsed)) nonces;
+        mapping(address => uint256 nonce) nonces;
     }
 
     /**
