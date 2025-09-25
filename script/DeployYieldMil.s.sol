@@ -11,7 +11,7 @@ contract DeployYieldMilScript is Script {
     uint256 immutable chainId = block.chainid;
     address immutable admin =
         chainId == 7001 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
-    address constant implTestnet = 0xfB6F22B331C402B1F7130053F60a7d1b57AD00e2;
+    address constant implTestnet = 0x62B98289A77F4Fee03d5F77a0060863D74e58DCC;
     address constant implMainnet = 0x20378cdb68e91C7A35a207a5bC5cF9e4f1d942f4;
     address constant proxyTestnet = 0x3a1E99a396607B822a68B194eE856d05fc38d848;
     address constant proxyMainnet = 0xE65eEe518A897618cBEe25898f80200E7988c81e;
@@ -64,17 +64,17 @@ contract DeployYieldMilScript is Script {
         vm.stopBroadcast(); */
 
         // change implementation
-        /* vm.startBroadcast();
+        vm.startBroadcast();
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
-        vm.stopBroadcast(); */
+        vm.stopBroadcast();
 
         // change implementation and reinitialize
-        vm.startBroadcast();
+        /* vm.startBroadcast();
         IYieldMil.ReInitContext memory reInitContext = _getReInitContext();
         reInitContext.version = 2;
         bytes memory data = abi.encodeCall(YieldMil.reinitialize, reInitContext);
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), data);
-        vm.stopBroadcast();
+        vm.stopBroadcast(); */
     }
 
     // deploy proxy without initializing
