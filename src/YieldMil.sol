@@ -27,8 +27,11 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
 
     /// gas savings
     uint256 internal immutable CHAIN_ID = block.chainid;
+    bytes internal constant FEE_DATA = abi.encode(0, 0);
+    address internal constant CURVE_ADAPTER = 0x03f876327F4dd491cA6BD9c4E33d60CA41EAEeF6;
+    uint256 internal constant DECIMAL_DIFF = 1e12;
     /// @inheritdoc IYieldMil
-    string public constant VERSION = "1.4.0";
+    string public constant VERSION = "1.4.1";
     /// @inheritdoc IYieldMil
     IWETH9 public constant WZETA = IWETH9(0x5F0b1a82749cb4E2278EC87F8BF6B618dC71a8bf);
     /// @inheritdoc IYieldMil
@@ -37,6 +40,8 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     uint256 public constant POLYGON_CHAIN_ID = 137;
     /// @inheritdoc IYieldMil
     uint256 public constant BNB_CHAIN_ID = 56;
+    /// @inheritdoc IYieldMil
+    IDODORouter public constant DODO_ROUTER = IDODORouter(0xDf25db6c8735E4238a86423D0380572505422BfD);
     /// @inheritdoc IYieldMil
     IGatewayZEVM public immutable GATEWAY;
     /// @inheritdoc IYieldMil
@@ -131,8 +136,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
         if (message[0] == hex"01") {
             CallContext memory callContext = abi.decode(message[1:message.length], (CallContext));
             callContext.token = _getUSDC(callContext.targetChain);
-            // TODO: fix slippage
-            callContext.amount = zrc20.swapExactTokensForTokens(amount, callContext.token, 1);
+            callContext.amount = _swapUsdcs(zrc20, callContext.token, amount);
             _deposit(callContext, context.chainID);
         } else if (message[0] == hex"02") {
             CallContext memory callContext = abi.decode(message[1:message.length], (CallContext));
@@ -158,8 +162,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             } else {
                 address targetToken = _getUSDC(destinationChain);
                 callContext.token = targetToken;
-                // TODO: fix slippage
-                amount = zrc20.swapExactTokensForTokens(amount, targetToken, 1);
+                amount = _swapUsdcs(zrc20, targetToken, amount);
                 (address gasZRC20, uint256 gasFee) = IZRC20(targetToken).withdrawGasFeeWithGasLimit(100_000);
                 callContext.gasLimit = 100_000;
                 // If the contract doesn't have enough tokens, swap for it
@@ -483,6 +486,56 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     }
 
     /**
+     * Swaps USDCs via DODO.
+     * @dev will revert with non USDC tokens.
+     * @param fromToken - The token to swap from.
+     * @param toToken - The token to swap to.
+     * @param amount - The amount to swap.
+     * @return The amount of tokens received.
+     */
+    function _swapUsdcs(address fromToken, address toToken, uint256 amount) internal returns (uint256) {
+        address[] memory mixAdapters = new address[](1);
+        mixAdapters[0] = CURVE_ADAPTER;
+        address[] memory mixPairs = new address[](1);
+        // usdc7 pool
+        mixAdapters[0] = 0x0a914379955E56fc7732E5d6Fc0A6f94B44fD590;
+        address[] memory assetTo = new address[](2);
+        assetTo[0] = CURVE_ADAPTER;
+        assetTo[1] = address(DODO_ROUTER);
+        bytes[] memory moreInfos = new bytes[](1);
+        moreInfos[0] = abi.encode(true, fromToken, toToken, _getIndex(fromToken), _getIndex(toToken));
+        // 0.5% slippage
+        uint256 minReturnAmount;
+        uint256 expReturnAmount;
+        if (fromToken == USDC_BNB) {
+            minReturnAmount = amount * 995 / 1000 / DECIMAL_DIFF;
+            expReturnAmount = amount / DECIMAL_DIFF;
+        } else if (toToken == USDC_BNB) {
+            minReturnAmount = amount * 995 * DECIMAL_DIFF / 1000;
+            expReturnAmount = amount * DECIMAL_DIFF;
+        } else {
+            minReturnAmount = amount * 995 / 1000;
+            expReturnAmount = amount;
+        }
+
+        IERC20(fromToken).safeIncreaseAllowance(0x3a5980966a8774b357A807231F87F7FD792Ff6F9, amount);
+        return DODO_ROUTER.mixSwap({
+            fromToken: fromToken,
+            toToken: toToken,
+            fromTokenAmount: amount,
+            expReturnAmount: expReturnAmount,
+            minReturnAmount: minReturnAmount,
+            mixAdapters: mixAdapters,
+            mixPairs: mixPairs,
+            assetTo: assetTo,
+            directions: 1,
+            moreInfos: moreInfos,
+            feeData: FEE_DATA,
+            deadLine: block.timestamp + 200
+        });
+    }
+
+    /**
      * Returns the key for the given chain, protocol and token.
      * @param chain - The chain.
      * @param protocol - The protocol.
@@ -507,6 +560,23 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             return USDC_BNB;
         } else {
             revert InvalidChain();
+        }
+    }
+
+    /**
+     * Returns the index for the given token for the CURVE pool.
+     * @param token - The token.
+     * @return The index.
+     */
+    function _getIndex(address token) internal view returns (uint256) {
+        if (token == USDC_BASE) {
+            return 3;
+        } else if (token == USDC_POLYGON) {
+            return 6;
+        } else if (token == USDC_BNB) {
+            return 4;
+        } else {
+            revert NotUSDC();
         }
     }
 
