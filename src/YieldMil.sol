@@ -475,6 +475,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
                 _context.destinationChain,
                 _context.nonce,
                 _context.targetChain,
+                _context.deadline,
                 _vault
             )
         ).toEthSignedMessageHash();
