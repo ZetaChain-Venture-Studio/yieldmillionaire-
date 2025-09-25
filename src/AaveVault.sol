@@ -373,7 +373,16 @@ contract AaveVault is IVault, AaveVaultStorage, Callable, Initializable {
         address sender = context.sender;
         uint256 nonce = _getStorage().nonces[sender];
         bytes32 digest = keccak256(
-            abi.encode(sender, context.to, context.amount, context.destinationChain, nonce, CHAIN_ID, context.deadline, address(this))
+            abi.encode(
+                sender,
+                context.to,
+                context.amount,
+                context.destinationChain,
+                nonce,
+                CHAIN_ID,
+                context.deadline,
+                address(this)
+            )
         ).toEthSignedMessageHash();
         if (!sender.isValidSignatureNow(digest, context.signature)) revert InvalidSignature();
 

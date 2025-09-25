@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {RefundVault} from "../RefundVault.sol";
 import "../utils/Types.sol";
+import {IDODORouter} from "./IDODORouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IGatewayZEVM} from "@zetachain/contracts/zevm/interfaces/IGatewayZEVM.sol";
 import {AbortContext, RevertContext} from "@zetachain/contracts/zevm/interfaces/IGatewayZEVM.sol";
@@ -179,6 +180,10 @@ interface IYieldMil {
      * Returns BNB chain id
      */
     function BNB_CHAIN_ID() external view returns (uint256);
+    /**
+     * Returns the DODO_ROUTER contract address
+     */
+    function DODO_ROUTER() external view returns (IDODORouter);
     /**
      * Returns the GATEWAY contract address
      */
