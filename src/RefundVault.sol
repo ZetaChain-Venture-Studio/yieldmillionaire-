@@ -81,8 +81,8 @@ contract RefundVault {
         if (deadline < block.timestamp) revert SignatureExpired();
 
         uint256 nonce = nonces[owner];
-        bytes32 digest =
-            keccak256(abi.encode(owner, to, token, amount, nonce, CHAIN_ID, address(this))).toEthSignedMessageHash();
+        bytes32 digest = keccak256(abi.encode(owner, to, token, amount, nonce, CHAIN_ID, deadline, address(this)))
+            .toEthSignedMessageHash();
         if (!owner.isValidSignatureNow(digest, signature)) revert InvalidSignature();
 
         nonces[owner] = nonce + 1;
