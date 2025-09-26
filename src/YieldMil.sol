@@ -519,7 +519,8 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
         }
 
         IERC20(fromToken).safeIncreaseAllowance(0x3a5980966a8774b357A807231F87F7FD792Ff6F9, amount);
-        return DODO_ROUTER.mixSwap({
+        uint256 balanceBefore = IERC20(toToken).balanceOf(address(this));
+        DODO_ROUTER.mixSwap({
             fromToken: fromToken,
             toToken: toToken,
             fromTokenAmount: amount,
@@ -533,6 +534,10 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             feeData: FEE_DATA,
             deadLine: block.timestamp + 200
         });
+        uint256 amountReceived = IERC20(toToken).balanceOf(address(this)) - balanceBefore;
+        if (amountReceived < minReturnAmount) revert BadSwap(amountReceived);
+
+        return amountReceived;
     }
 
     /**
