@@ -141,6 +141,7 @@ interface IYieldMil {
      */
     event WithdrawUnpaused(uint256 time);
 
+    error BadSwap(uint256 amount);
     error DepositIsForbidden();
     error InvalidAbort();
     error InvalidChain();
