@@ -498,7 +498,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
         mixAdapters[0] = CURVE_ADAPTER;
         address[] memory mixPairs = new address[](1);
         // usdc7 pool
-        mixAdapters[0] = 0x0a914379955E56fc7732E5d6Fc0A6f94B44fD590;
+        mixPairs[0] = 0x0a914379955E56fc7732E5d6Fc0A6f94B44fD590;
         address[] memory assetTo = new address[](2);
         assetTo[0] = CURVE_ADAPTER;
         assetTo[1] = address(DODO_ROUTER);
