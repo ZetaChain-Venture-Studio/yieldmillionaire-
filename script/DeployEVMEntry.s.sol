@@ -12,9 +12,9 @@ contract DeployEVMEntryScript is Script {
     address immutable admin =
         chainId == 421614 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
     address constant implTestnet = 0xE879848fF873eF67CC6Bdfb21D275236548B2a09;
-    address constant implBase = 0xaf5F8E58e6a26cEF6fE6EBBA562fc4d210d72BbD;
-    address constant implPolygon = 0x7509c6091F586258E6FE0EC95be9096Ad578bF75;
-    address constant implBnb = 0xA939a79cC67298fb014C164d621E44e4b5A312f5;
+    address constant implBase = 0x932F1B9623C5C55B84C11379e2D59Bdabc386B1c;
+    address constant implPolygon = 0x7E31763BCB704DaF1B54B55D84DF3E3eAd6dB2aF;
+    address constant implBnb = 0x47C03cbAf42ddee10F997E50c64EBC54248aA498;
     address constant proxyTestnet = 0x5789500c258fB5cd222fF83f07576E4DF3B5401e;
     address constant proxyBase = 0xCB513DB80C6C76593770Fc4a1827d5Ab8186b0cD;
     address constant proxyPolygon = 0x1547e8603048137deFf6Fc029C1778E2889A0F83;
@@ -160,10 +160,19 @@ contract DeployEVMEntryScript is Script {
     }
 
     function _getReInitContext() internal view returns (IEVMEntry.ReInitContext memory reInitContext) {
-        if (chainId == 8453) {} else if (chainId == 137) {} else if (chainId == 421614) {
+        if (chainId == 8453) {
+            reInitContext.vaults = new address[](1);
+            reInitContext.vaults[0] = 0xD4F3Ba2Fe4183c32A498Ad1ecF9Fc55308FcC029;
+        } else if (chainId == 137) {
+            reInitContext.vaults = new address[](1);
+            reInitContext.vaults[0] = 0x1c60d7075b19C8107dEe803272c9d085A0eDf775;
+        } else if (chainId == 421614) {
             reInitContext.vaults = new address[](1);
             reInitContext.vaults[0] = 0x2DEEdcE96f1B40301B7CA1F8877286f73dE87CF3;
-        } else if (chainId == 56) {} else {
+        } else if (chainId == 56) {
+            reInitContext.vaults = new address[](1);
+            reInitContext.vaults[0] = 0xCB513DB80C6C76593770Fc4a1827d5Ab8186b0cD;
+        } else {
             revert("Unsupported network");
         }
     }

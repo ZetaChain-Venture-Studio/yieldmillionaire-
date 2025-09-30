@@ -491,9 +491,9 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
      * @param fromToken - The token to swap from.
      * @param toToken - The token to swap to.
      * @param amount - The amount to swap.
-     * @return The amount of tokens received.
+     * @return amountReceived - The amount of tokens received.
      */
-    function _swapUsdcs(address fromToken, address toToken, uint256 amount) internal returns (uint256) {
+    function _swapUsdcs(address fromToken, address toToken, uint256 amount) internal returns (uint256 amountReceived) {
         address[] memory mixAdapters = new address[](1);
         mixAdapters[0] = CURVE_ADAPTER;
         address[] memory mixPairs = new address[](1);
@@ -534,10 +534,8 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
             feeData: FEE_DATA,
             deadLine: block.timestamp + 200
         });
-        uint256 amountReceived = IERC20(toToken).balanceOf(address(this)) - balanceBefore;
+        amountReceived = IERC20(toToken).balanceOf(address(this)) - balanceBefore;
         if (amountReceived < minReturnAmount) revert BadSwap(amountReceived);
-
-        return amountReceived;
     }
 
     /**

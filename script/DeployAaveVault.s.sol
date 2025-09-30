@@ -13,9 +13,9 @@ contract DeployAaveVaultScript is Script {
     address immutable admin =
         chainId == 421614 ? 0xFaB1e0F009A77a60dc551c2e768DFb3fadc40827 : 0xABD10F0A61270D6977c5bFD9d4ec74d6D3bc96ab;
     address constant implTestnet = 0xaf44a202FeD9E08029C313AD0Ee50CB9DEc156fC;
-    address constant implBase = 0x862f46d57B3aa0FD3592D2DbA8Ea1cA4A11e846E;
-    address constant implPolygon = 0x8bcd92E87B3f67457C80F085379Ef7fC65d3bCcD;
-    address constant implBnb = 0xF441cd47327af1A70A067Ff7f5cAd122bA1B7376;
+    address constant implBase = 0xC4b1221701ED9EeCbA01d5f52D60Cb95a9d492a2;
+    address constant implPolygon = 0xc62D48cbD608549d05e27e2b3d4B09eb6b0beD19;
+    address constant implBnb = 0xE65eEe518A897618cBEe25898f80200E7988c81e;
     address constant proxyTestnet = 0x2DEEdcE96f1B40301B7CA1F8877286f73dE87CF3;
     address constant proxyBase = 0xD4F3Ba2Fe4183c32A498Ad1ecF9Fc55308FcC029;
     address constant proxyPolygon = 0x1c60d7075b19C8107dEe803272c9d085A0eDf775;
@@ -86,17 +86,17 @@ contract DeployAaveVaultScript is Script {
         vm.stopBroadcast(); */
 
         // change implementation
-        vm.startBroadcast();
+        /* vm.startBroadcast();
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), "");
-        vm.stopBroadcast();
+        vm.stopBroadcast(); */
 
         // change implementation and reinitialize
-        /* vm.startBroadcast();
+        vm.startBroadcast();
         IVault.ReInitContext memory reInitContext = _getReInitContext();
         reInitContext.version = 2;
         bytes memory data = abi.encodeCall(AaveVault.reinitialize, reInitContext);
         ProxyBase(payable(_getProxy())).changeImplementation(_getImpl(), data);
-        vm.stopBroadcast(); */
+        vm.stopBroadcast();
     }
 
     // deploy proxy
