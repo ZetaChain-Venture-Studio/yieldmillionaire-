@@ -41,7 +41,7 @@ contract AaveVaultStorage {
      * Returns the storage of the AaveVault.
      */
     function _getStorage() internal pure returns (Storage storage $) {
-        assembly {
+        assembly ("memory-safe") {
             $.slot := AAVEVAULT_STORAGE_SLOT
         }
     }

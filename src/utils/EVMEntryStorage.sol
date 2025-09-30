@@ -26,7 +26,7 @@ contract EVMEntryStorage {
      * Returns the storage of the YieldMil.
      */
     function _getStorage() internal pure returns (Storage storage $) {
-        assembly {
+        assembly ("memory-safe") {
             $.slot := EVMENTRY_STORAGE_SLOT
         }
     }
