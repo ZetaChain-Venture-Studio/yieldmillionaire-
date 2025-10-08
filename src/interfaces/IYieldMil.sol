@@ -148,7 +148,6 @@ interface IYieldMil {
     error InvalidEVMEntry();
     error InvalidMessage(bytes);
     error InvalidSender();
-    error InvalidSignature();
     error InvalidVault();
     error InvalidRevert();
     error NotGateway();
