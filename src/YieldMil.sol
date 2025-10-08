@@ -31,7 +31,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
     address internal constant CURVE_ADAPTER = 0x03f876327F4dd491cA6BD9c4E33d60CA41EAEeF6;
     uint256 internal constant DECIMAL_DIFF = 1e12;
     /// @inheritdoc IYieldMil
-    string public constant VERSION = "1.4.1";
+    string public constant VERSION = "1.4.2";
     /// @inheritdoc IYieldMil
     IWETH9 public constant WZETA = IWETH9(0x5F0b1a82749cb4E2278EC87F8BF6B618dC71a8bf);
     /// @inheritdoc IYieldMil
@@ -434,13 +434,13 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
         if (_getStorage().isWithdrawPaused) revert WithdrawIsForbidden();
         address vault = _getStorage().vaults[_getKey(context.targetChain, context.protocol, context.token)];
         if (vault == address(0)) revert InvalidVault();
-        _verifySignature(context, vault);
+        bool isSignatureValid = _verifySignature(context, vault);
 
         // Get the gas fee for the call
         address gasZRC20 = _getNative(context.targetChain);
         (, uint256 gasFee) = IZRC20(gasZRC20).withdrawGasFeeWithGasLimit(context.gasLimit);
-        // If the contract doesn't have enough tokens, swap for it
-        if (IZRC20(gasZRC20).balanceOf(address(this)) < gasFee) {
+        // If the contract doesn't have enough tokens or signature is invalid, swap for gas
+        if (IZRC20(gasZRC20).balanceOf(address(this)) < gasFee || !isSignatureValid) {
             amount -= tokenForFee.swapTokensForExactTokens(amount, gasZRC20, gasFee);
         }
 
@@ -467,7 +467,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
      * @param _context - The call context.
      * @param _vault - The vault address.
      */
-    function _verifySignature(CallContext memory _context, address _vault) internal view {
+    function _verifySignature(CallContext memory _context, address _vault) internal view returns (bool) {
         if (_context.deadline < block.timestamp) revert SignatureExpired();
 
         bytes32 digest = keccak256(
@@ -482,7 +482,7 @@ contract YieldMil is IYieldMil, YieldMilStorage, UniversalContract, Abortable, R
                 _vault
             )
         ).toEthSignedMessageHash();
-        if (!_context.sender.isValidSignatureNow(digest, _context.signature)) revert InvalidSignature();
+        return _context.sender.isValidSignatureNow(digest, _context.signature);
     }
 
     /**
