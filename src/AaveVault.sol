@@ -8,6 +8,7 @@ import {Protocol} from "./utils/Types.sol";
 import {IPool} from "@aave/contracts/interfaces/IPool.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -22,8 +23,9 @@ import {Callable, MessageContext} from "@zetachain/contracts/evm/interfaces/IGat
 contract AaveVault is IVault, AaveVaultStorage, Callable, Initializable {
     using SafeERC20 for IERC20;
     using Math for uint256;
-    using MessageHashUtils for bytes32;
+    using MessageHashUtils for *;
     using SignatureChecker for address;
+    using Strings for uint256;
 
     /// denominator for fee, 10000 == 100%
     uint256 internal constant SCALE = 10000;
@@ -31,7 +33,7 @@ contract AaveVault is IVault, AaveVaultStorage, Callable, Initializable {
     uint256 internal immutable CHAIN_ID = block.chainid;
     IPool internal immutable POOL;
     /// @inheritdoc IVault
-    string public constant VERSION = "1.2.0";
+    string public constant VERSION = "1.2.1";
     /// @inheritdoc IVault
     IERC20 public immutable TOKEN;
     /// @inheritdoc IVault
@@ -384,6 +386,11 @@ contract AaveVault is IVault, AaveVaultStorage, Callable, Initializable {
                 address(this)
             )
         ).toEthSignedMessageHash();
+
+        if (context.signature.length > 65) {
+            digest = bytes(uint256(digest).toHexString()).toEthSignedMessageHash();
+        }
+
         if (!sender.isValidSignatureNow(digest, context.signature)) revert InvalidSignature();
 
         _getStorage().nonces[sender] = nonce + 1;
